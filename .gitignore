@@ -1,3 +1,10 @@
 examples/
 tests/
 scripts/
+
+myenv/
+
+.hf_cache/
+__pycache__/
+
+*test*.py
