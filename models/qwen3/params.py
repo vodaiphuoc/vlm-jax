@@ -21,7 +21,7 @@ import jax
 import jax.numpy as jnp
 import safetensors.flax as safetensors
 import tqdm
-from tunix.models.qwen3 import model as model_lib
+import models.qwen3.model as model_lib
 
 
 def _stack_experts(params: dict[str, jax.Array]):
