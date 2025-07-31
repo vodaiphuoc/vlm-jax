@@ -58,7 +58,29 @@ class ShardingConfig:
 
 @dataclasses.dataclass(frozen=True)
 class ModelConfig:
-    """Configuration for the Qwen2 model."""
+    r"""
+    Configuration for the Qwen2 model
+    
+    Args:
+        num_layers (int): alias of `num_hidden_layers` on hf config  
+        vocab_size (int): vocab size of vocab embedding
+        embed_dim (int): alias of `hidden_size` on hf config 
+        hidden_dim (int): alias of `intermediate_size` on hf config 
+        num_heads (int): alias of `num_attention_heads` on hf config
+        head_dim (int): Qwen2's config doesnt have `head_dim`. So it will be:
+            ```math
+            embed_dim/num_heads
+            ```
+            or in hf
+            ```math
+            hidden_size/num_attention_heads
+            ```
+        see more in [here](https://github.com/huggingface/transformers/blob/6c3f27ba6186897d072b87e9e6e7c63d97f0fe99/src/transformers/models/qwen2/modeling_qwen2.py#L128C1-L128C102)
+        
+        num_kv_heads (int): alias of `num_key_value_heads` on hf config
+        norm_eps (float): alias of `rms_norm_eps` on hf config
+        rope_theta (int): rope_theta for ROPE
+    """
 
     num_layers: int  # num_hidden_layers
     vocab_size: int
@@ -74,15 +96,15 @@ class ModelConfig:
     shd_config: ShardingConfig = ShardingConfig.get_default_sharding()
 
     @classmethod
-    def qwen3_0_6_b(cls):  # qwen2-0.5B
+    def qwen2_0_5_b(cls):  # qwen2-0.5B
         return cls(
             num_layers=24,
             vocab_size=151936,
             embed_dim=896,
             hidden_dim=4864,
             num_heads=14,
-            head_dim=128,
-            num_kv_heads=8,
+            head_dim= 896//14,
+            num_kv_heads=2,
             norm_eps=1e-06,
             rope_theta=1_000_000,
         )
