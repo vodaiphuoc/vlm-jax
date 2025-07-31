@@ -192,7 +192,6 @@ def create_model_from_safe_tensors(
 
   graph_def, abs_state = nnx.split(qwen3)
   state_dict = abs_state.to_pure_dict()
-
   with jax.default_device(jax.devices("cpu")[0]):
     for k, v in tqdm.tqdm(tensor_dict.items()):
       jax_key, transform = _torch_key_to_jax_key(

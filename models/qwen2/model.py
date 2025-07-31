@@ -103,7 +103,7 @@ class ModelConfig:
             embed_dim=896,
             hidden_dim=4864,
             num_heads=14,
-            head_dim= 896//14,
+            head_dim= 896//14, # 64
             num_kv_heads=2,
             norm_eps=1e-06,
             rope_theta=1_000_000,
@@ -125,22 +125,49 @@ class Einsum(nnx.Module):
     """Einsum is a convenience module for parameterized tensor multiplication."""
 
     def __init__(
-        self,
-        einsum_str: str,
-        shape: flax.typing.Shape,
-        *,
-        rngs: nnx.Rngs,
-        sharding: Tuple[str | None, ...],
-    ):
+            self,
+            einsum_str: str,
+            shape: flax.typing.Shape,
+            *,
+            rngs: nnx.Rngs,
+            sharding: Tuple[str | None, ...],
+        )->None:
+
         self.einsum_str = einsum_str
         self.shape = shape
         self.w = nnx.Param(
             nnx.initializers.normal()(rngs.params(), shape), sharding=sharding
         )
-
+    
     @jax.named_scope('einsum')
     def __call__(self, x: jaxtyping.ArrayLike) -> jaxtyping.Array:
         return jnp.einsum(self.einsum_str, x, self.w.value)
+
+
+class EinsumBias(Einsum):
+    def __init__(
+            self,
+            einsum_str: str,
+            shape: flax.typing.Shape,
+            bias_shape: flax.typing.Shape,
+            *,
+            rngs: nnx.Rngs,
+            sharding: Tuple[str | None, ...],
+        )->None:
+        super().__init__(
+            einsum_str= einsum_str, 
+            shape= shape , 
+            rngs= rngs, 
+            sharding= sharding
+        )
+        
+        self.b = nnx.Param(
+            nnx.initializers.normal()(rngs.params(), bias_shape), sharding=sharding
+        )
+
+    @jax.named_scope('einsum')
+    def __call__(self, x: jaxtyping.ArrayLike) -> jaxtyping.Array:        
+        return super().__call__(x= x) + self.b
 
 
 class Embedder(nnx.Module):
@@ -223,7 +250,12 @@ class RMSNorm(nnx.Module):
 
 
 class Attention(nnx.Module):
-    """Attention module."""
+    r"""
+    Attention module.
+    In Qwen2, there are no q_norm and k_norm for q_proj and k_proj, see
+    implement on [huggingface](https://github.com/huggingface/transformers/blob/b937d474550cb282b304b2d27ef58a306b2fd512/src/transformers/models/qwen2/modeling_qwen2.py#L124-L137) 
+
+    """
 
     def __init__(
         self,
@@ -233,21 +265,24 @@ class Attention(nnx.Module):
         shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
     ):
         self.shd_config = shd_config
-        self.q_proj = Einsum(
+        self.q_proj = EinsumBias(
             einsum_str='BTD,DNH->BTNH',
             shape=(config.embed_dim, config.num_heads, config.head_dim),
+            bias_shape = (config.num_heads, config.head_dim),
             rngs=rngs,
             sharding=shd_config.q_weight_ndh,
         )
-        self.k_proj = Einsum(
+        self.k_proj = EinsumBias(
             einsum_str='BSD,DKH->BSKH',
             shape=(config.embed_dim, config.num_kv_heads, config.head_dim),
+            bias_shape = (config.num_kv_heads, config.head_dim),
             rngs=rngs,
             sharding=shd_config.kv_weight_ndh,
         )
-        self.v_proj = Einsum(
+        self.v_proj = EinsumBias(
             einsum_str='BSD,DKH->BSKH',
             shape=(config.embed_dim, config.num_kv_heads, config.head_dim),
+            bias_shape = (config.num_kv_heads, config.head_dim),
             rngs=rngs,
             sharding=shd_config.kv_weight_ndh,
         )
@@ -257,18 +292,18 @@ class Attention(nnx.Module):
             rngs=rngs,
             sharding=shd_config.o_weight_nhd,
         )
-        self.q_norm = RMSNorm(
-            config.head_dim,
-            norm_eps=config.norm_eps,
-            rngs=rngs,
-            shd_config=shd_config,
-        )
-        self.k_norm = RMSNorm(
-            config.head_dim,
-            norm_eps=config.norm_eps,
-            rngs=rngs,
-            shd_config=shd_config,
-        )
+        # self.q_norm = RMSNorm(
+        #     config.head_dim,
+        #     norm_eps=config.norm_eps,
+        #     rngs=rngs,
+        #     shd_config=shd_config,
+        # )
+        # self.k_norm = RMSNorm(
+        #     config.head_dim,
+        #     norm_eps=config.norm_eps,
+        #     rngs=rngs,
+        #     shd_config=shd_config,
+        # )
         self.n_rep = config.num_heads // config.num_kv_heads
         self.scale = self.head_dim**-0.5
 
@@ -282,8 +317,8 @@ class Attention(nnx.Module):
         ) -> tuple[LayerCache | None, jaxtyping.Array]:
         seq_len = x.shape[1]
 
-        query_proj = self.q_norm(self.q_proj(x))
-        key_proj = self.k_norm(self.k_proj(x))
+        query_proj = self.q_proj(x)
+        key_proj = self.k_proj(x)
         value_proj = self.v_proj(x)
 
         query_proj = shard(query_proj, self.shd_config.act_btnh)
@@ -450,6 +485,7 @@ class MLP(nnx.Module):
     ):
         self.shd_config = shd_config
         kernel_init_fn = nnx.initializers.zeros_init()
+
         self.gate_proj = nnx.Linear(
             in_features=config.embed_dim,
             out_features=config.hidden_dim,
@@ -459,6 +495,7 @@ class MLP(nnx.Module):
                 kernel_init_fn, shd_config.ffw_weight_df
             ),
         )
+        
         self.up_proj = nnx.Linear(
             in_features=config.embed_dim,
             out_features=config.hidden_dim,
@@ -468,6 +505,7 @@ class MLP(nnx.Module):
                 kernel_init_fn, shd_config.ffw_weight_df
             ),
         )
+
         self.down_proj = nnx.Linear(
             in_features=config.hidden_dim,
             out_features=config.embed_dim,
@@ -533,13 +571,16 @@ class DecoderLayer(nnx.Module):
         cache: LayerCache | None,
         attn_mask: jaxtyping.Array,
     ) -> tuple[LayerCache | None, jaxtyping.Array]:
+        
         inputs_normalized = self.input_layernorm(x)
+        
         cache, attn_output = self.attn(
             inputs_normalized,
             segment_pos,
             cache,
             attn_mask,
         )
+
         attn_output += x
         residual = attn_output
         attn_output = self.post_attention_layernorm(attn_output)
@@ -549,7 +590,10 @@ class DecoderLayer(nnx.Module):
 
 
 class Qwen2(nnx.Module):
-    """Qwen2 model."""
+    """
+    Qwen2 model.
+    Intent for loading qwen2 0.5 only, so there is no `lm_head`
+    """
 
     def __init__(
         self,
@@ -575,12 +619,12 @@ class Qwen2(nnx.Module):
             norm_eps=config.norm_eps,
             shd_config=shd_config,
         )
-        self.lm_head = Einsum(
-            einsum_str='BTD,DV->BTV',
-            shape=(config.embed_dim, config.vocab_size),
-            rngs=rngs,
-            sharding=shd_config.emb_dv,
-        )
+        # self.lm_head = Einsum(
+        #     einsum_str='BTD,DV->BTV',
+        #     shape=(config.embed_dim, config.vocab_size),
+        #     rngs=rngs,
+        #     sharding=shd_config.emb_dv,
+        # )
 
     def __call__(
         self,
@@ -624,5 +668,5 @@ class Qwen2(nnx.Module):
         if output_hidden_states:
             self.sow(nnx.Intermediate, 'all_hidden_states', x)
         
-        logits = self.lm_head(x)
-        return logits, new_cache  # pytype: disable=bad-return-type
+        return x, new_cache  # pytype: disable=bad-return-type
+
