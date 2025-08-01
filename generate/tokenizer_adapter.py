@@ -69,15 +69,12 @@ class TokenizerAdapter:
     def decode(self, ids: list[int], **kwargs) -> str:
         return self._decode(ids, **kwargs)
 
-    @property
     def bos_id(self) -> int:
         return self._bos_id
 
-    @property
     def eos_id(self) -> int:
         return self._eos_id
     
-    @property
     def pad_id(self) -> int:
         return self._pad_id
     
