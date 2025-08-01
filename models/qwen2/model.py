@@ -145,6 +145,9 @@ class Einsum(nnx.Module):
 
 
 class EinsumBias(Einsum):
+    r"""
+    Einsum for multiplication with bias
+    """
     def __init__(
             self,
             einsum_str: str,
@@ -226,13 +229,13 @@ class RMSNorm(nnx.Module):
     """RMSNorm layer."""
 
     def __init__(
-        self,
-        dim: int,
-        *,
-        norm_eps: float = 1e-06,
-        rngs: nnx.Rngs,
-        shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
-    ):
+            self,
+            dim: int,
+            *,
+            norm_eps: float = 1e-06,
+            rngs: nnx.Rngs,
+            shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
+        ):
         self.w = nnx.Param(
             nnx.initializers.ones_init()(rngs.params(), dim),
             sharding=shd_config.rms_norm_weight,
@@ -258,12 +261,12 @@ class Attention(nnx.Module):
     """
 
     def __init__(
-        self,
-        config: ModelConfig,
-        *,
-        rngs: nnx.Rngs,
-        shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
-    ):
+            self,
+            config: ModelConfig,
+            *,
+            rngs: nnx.Rngs,
+            shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
+        ):
         self.shd_config = shd_config
         self.q_proj = EinsumBias(
             einsum_str='BTD,DNH->BTNH',
@@ -309,11 +312,11 @@ class Attention(nnx.Module):
 
     @jax.named_scope('attention')
     def __call__(
-        self,
-        x: jaxtyping.Array,
-        segment_pos: jaxtyping.Array,
-        cache: LayerCache | None,
-        attn_mask: jaxtyping.Array | None,
+            self,
+            x: jaxtyping.Array,
+            segment_pos: jaxtyping.Array,
+            cache: LayerCache | None,
+            attn_mask: jaxtyping.Array | None,
         ) -> tuple[LayerCache | None, jaxtyping.Array]:
         seq_len = x.shape[1]
 
@@ -398,12 +401,12 @@ class MoELayer(nnx.Module):
     """MoE layer."""
 
     def __init__(
-        self,
-        config: ModelConfig,
-        *,
-        rngs: nnx.Rngs,
-        shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
-    ):
+            self,
+            config: ModelConfig,
+            *,
+            rngs: nnx.Rngs,
+            shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
+        ):
         self.shd_config = shd_config
         self.experts_per_tok = config.num_experts_per_tok
         self.num_experts = config.num_experts
@@ -477,12 +480,13 @@ class MLP(nnx.Module):
     """MLP module."""
 
     def __init__(
-        self,
-        config: ModelConfig,
-        *,
-        rngs: nnx.Rngs,
-        shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
-    ):
+            self,
+            config: ModelConfig,
+            *,
+            rngs: nnx.Rngs,
+            shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
+        ):
+
         self.shd_config = shd_config
         kernel_init_fn = nnx.initializers.zeros_init()
 
@@ -528,12 +532,12 @@ class DecoderLayer(nnx.Module):
     """DecoderLayer."""
 
     def __init__(
-        self,
-        config: ModelConfig,
-        *,
-        rngs: nnx.Rngs,
-        shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
-    ):
+            self,
+            config: ModelConfig,
+            *,
+            rngs: nnx.Rngs,
+            shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
+        ):
         self.input_layernorm = RMSNorm(
             config.embed_dim,
             norm_eps=config.norm_eps,
@@ -565,12 +569,12 @@ class DecoderLayer(nnx.Module):
             )
 
     def __call__(
-        self,
-        x: jaxtyping.Array,
-        segment_pos: jaxtyping.Array,
-        cache: LayerCache | None,
-        attn_mask: jaxtyping.Array,
-    ) -> tuple[LayerCache | None, jaxtyping.Array]:
+            self,
+            x: jaxtyping.Array,
+            segment_pos: jaxtyping.Array,
+            cache: LayerCache | None,
+            attn_mask: jaxtyping.Array,
+        ) -> tuple[LayerCache | None, jaxtyping.Array]:
         
         inputs_normalized = self.input_layernorm(x)
         
@@ -596,12 +600,13 @@ class Qwen2(nnx.Module):
     """
 
     def __init__(
-        self,
-        config: ModelConfig,
-        *,
-        rngs: nnx.Rngs,
-        shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
-    ):
+            self,
+            config: ModelConfig,
+            *,
+            rngs: nnx.Rngs,
+            shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
+        ):
+
         self.config = config
         self.embedder = Embedder(
             vocab_size=config.vocab_size,
@@ -627,27 +632,26 @@ class Qwen2(nnx.Module):
         # )
 
     def __call__(
-        self,
-        input_tokens: jaxtyping.Array,  # [B, L]
-        positions: jaxtyping.Array,  # [B, L]
-        cache: Cache | None,  # (sequence length L')
-        attention_mask: jaxtyping.Array,  # [B, L, L']
-        output_hidden_states: bool = False,
-    ) -> tuple[jaxtyping.Array, Cache | None]:
+            self,
+            input_tokens: jaxtyping.Array,  # [B, L]
+            positions: jaxtyping.Array,  # [B, L]
+            cache: Cache | None,  # (sequence length L')
+            attention_mask: jaxtyping.Array,  # [B, L, L']
+            output_hidden_states: bool = False,
+        ) -> tuple[jaxtyping.Array, Cache | None]:
         r"""Qwen2 model.
-
         Args:
-        input_tokens: input sequence of tokens.
-        positions: input absolute positions.
-        cache: Attention KV cache or None.
-        attention_mask: transformer input mask.
-        output_hidden_states: whether to output the hidden states.
+            input_tokens: input sequence of tokens.
+            positions: input absolute positions.
+            cache: Attention KV cache or None.
+            attention_mask: transformer input mask.
+            output_hidden_states: whether to output the hidden states.
 
         Returns:
-        predicted_logits, new_cache
+            predicted_logits, new_cache
 
-        predicted_logits: output logits predicted by the model
-        new_cache: updated cache if the input cache is not None, None elsewhere.
+            predicted_logits: output logits predicted by the model
+            new_cache: updated cache if the input cache is not None, None elsewhere.
         """
         new_cache = None if cache is None else {}
         x = self.embedder.encode(input_tokens)
