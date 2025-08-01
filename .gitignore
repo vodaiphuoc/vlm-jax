@@ -6,5 +6,6 @@ myenv/
 
 .hf_cache/
 __pycache__/
+.pytype/
 
 *test*.py
