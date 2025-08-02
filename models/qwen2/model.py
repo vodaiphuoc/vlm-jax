@@ -57,7 +57,7 @@ class ShardingConfig:
 
 
 @dataclasses.dataclass(frozen=True)
-class ModelConfig:
+class Qwen2ModelConfig:
     r"""
     Configuration for the Qwen2 model
     
@@ -255,14 +255,14 @@ class RMSNorm(nnx.Module):
 class Attention(nnx.Module):
     r"""
     Attention module.
-    In Qwen2, there are no q_norm and k_norm for q_proj and k_proj, see
+    In Qwen2, there are no q_norm and k_norm for q_proj and k_proj compared to Qwen3, see
     implement on [huggingface](https://github.com/huggingface/transformers/blob/b937d474550cb282b304b2d27ef58a306b2fd512/src/transformers/models/qwen2/modeling_qwen2.py#L124-L137) 
 
     """
 
     def __init__(
             self,
-            config: ModelConfig,
+            config: Qwen2ModelConfig,
             *,
             rngs: nnx.Rngs,
             shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
@@ -295,18 +295,7 @@ class Attention(nnx.Module):
             rngs=rngs,
             sharding=shd_config.o_weight_nhd,
         )
-        # self.q_norm = RMSNorm(
-        #     config.head_dim,
-        #     norm_eps=config.norm_eps,
-        #     rngs=rngs,
-        #     shd_config=shd_config,
-        # )
-        # self.k_norm = RMSNorm(
-        #     config.head_dim,
-        #     norm_eps=config.norm_eps,
-        #     rngs=rngs,
-        #     shd_config=shd_config,
-        # )
+
         self.n_rep = config.num_heads // config.num_kv_heads
         self.scale = self.head_dim**-0.5
 
@@ -402,7 +391,7 @@ class MoELayer(nnx.Module):
 
     def __init__(
             self,
-            config: ModelConfig,
+            config: Qwen2ModelConfig,
             *,
             rngs: nnx.Rngs,
             shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
@@ -481,7 +470,7 @@ class MLP(nnx.Module):
 
     def __init__(
             self,
-            config: ModelConfig,
+            config: Qwen2ModelConfig,
             *,
             rngs: nnx.Rngs,
             shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
@@ -533,7 +522,7 @@ class DecoderLayer(nnx.Module):
 
     def __init__(
             self,
-            config: ModelConfig,
+            config: Qwen2ModelConfig,
             *,
             rngs: nnx.Rngs,
             shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
@@ -601,7 +590,7 @@ class Qwen2(nnx.Module):
 
     def __init__(
             self,
-            config: ModelConfig,
+            config: Qwen2ModelConfig,
             *,
             rngs: nnx.Rngs,
             shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
@@ -624,12 +613,6 @@ class Qwen2(nnx.Module):
             norm_eps=config.norm_eps,
             shd_config=shd_config,
         )
-        # self.lm_head = Einsum(
-        #     einsum_str='BTD,DV->BTV',
-        #     shape=(config.embed_dim, config.vocab_size),
-        #     rngs=rngs,
-        #     sharding=shd_config.emb_dv,
-        # )
 
     def __call__(
             self,

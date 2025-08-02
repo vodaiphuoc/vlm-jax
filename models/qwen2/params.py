@@ -1,4 +1,4 @@
-"""Utils for loading and converting Qwen3 PT weights."""
+"""Utils for loading and converting Qwen2 PT weights."""
 from typing import Tuple
 import re
 from etils import epath
@@ -7,8 +7,7 @@ import jax
 import jax.numpy as jnp
 import safetensors.flax as safetensors
 import tqdm
-# from tunix.models.qwen3 import model as model_lib
-from .model import ModelConfig, Qwen2
+from .model import Qwen2ModelConfig, Qwen2
 
 def _stack_experts(params: dict[str, jax.Array]):
     """Stack experts in the loaded pytorch params."""
@@ -34,7 +33,7 @@ def _stack_experts(params: dict[str, jax.Array]):
     return new_params
 
 
-def _get_key_and_transform_mapping(cfg: ModelConfig):
+def _get_key_and_transform_mapping(cfg: Qwen2ModelConfig):
   # Mapping of torch_keys -> (nnx_keys, (permute_rule, reshape_rule)).
     return {
         r"model\.embed_tokens\.weight": ("embedder.input_embedding", None),
@@ -170,7 +169,7 @@ def _stoi(s):
 
 def create_model_from_safe_tensors(
     file_dir: str,
-    config: ModelConfig,
+    config: Qwen2ModelConfig,
     mesh: jax.sharding.Mesh | None = None,
 ) -> Qwen2:
     """Load tensors from the safetensors file and create a Qwen2 model."""
