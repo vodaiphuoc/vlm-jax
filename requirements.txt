@@ -6,3 +6,4 @@ safetensors==0.5.3
 tqdm
 huggingface_hub
 sentencepiece
+beartype
