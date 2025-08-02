@@ -10,13 +10,20 @@ from jax.interpreters import pxla
 import jax.sharding as shd
 import jaxtyping
 
+from models import MODE
+from models.utils import typechecked
+from models.internvl.types import (
+    INPUT_IMAGES_TYPE, 
+    HIDDEN_STATES_TYPE,
+    PATCH_EMBEDDING_OUT_TYPE
+)
 
 K_MASK = -2.3819763e38
 
 LayerCache = dict[str, jaxtyping.Array]
 Cache = dict[str, LayerCache]
-
 NAMED_SCOPE_PREFIX = "internvl"
+
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class ShardingConfig:
@@ -87,7 +94,7 @@ class InternVLVisionConfig:
     shd_config: ShardingConfig = ShardingConfig.get_default_sharding()
 
     @classmethod
-    def internvl3_1b_hf(cls):
+    def internvl3_1b_hf_vision(cls):
         return cls(
             hidden_size=1024,
             num_hidden_layers=24,
@@ -190,6 +197,7 @@ class InternVLVisionPatchEmbeddings(nnx.Module):
         self.num_patches = num_patches
         self.patch_shape = patch_shape
         
+        # channels-last convention
         self.projection = nnx.Conv(
             in_features=num_channels,
             out_features= hidden_size, 
@@ -198,11 +206,12 @@ class InternVLVisionPatchEmbeddings(nnx.Module):
             rngs= rngs
         )
     
+    @typechecked(mode=MODE)
     @jax.named_scope(f'{NAMED_SCOPE_PREFIX}_vision_patch_embedding')
     def __call__(
-            self, 
-            pixel_values: jaxtyping.Array
-        )->Tuple[jaxtyping.Array, Tuple[int]]:
+            self,
+            pixel_values: INPUT_IMAGES_TYPE
+        )->Tuple[PATCH_EMBEDDING_OUT_TYPE, Tuple[int]]:
         embeddings = self.projection(pixel_values)
         patch_height, patch_width = embeddings.shape[2], embeddings.shape[3]
         embeddings = embeddings.flatten(2).transpose(1, 2)
@@ -264,17 +273,18 @@ class InternVLVisionEmbeddings(nnx.Module):
             rngs= rngs
         )
 
+    @typechecked(mode=MODE)
     @jax.named_scope(f'{NAMED_SCOPE_PREFIX}_vision_embedding')
     def __call__(
-            self, 
-            pixel_values: jaxtyping.Array
-        ):
+            self,
+            pixel_values: INPUT_IMAGES_TYPE
+        )->Tuple[HIDDEN_STATES_TYPE, Tuple[int]]:
         r"""
         bool_masked_pos is None based on implement of huggingface
         so [the section]() is remove
         """
         
-        _, _, height, width = pixel_values.shape
+        _, height, width, _, = pixel_values.shape
         embeddings, (patch_height, patch_width) = self.patch_embeddings(pixel_values)
         batch_size, seq_len, _ = embeddings.size()
 
@@ -288,12 +298,13 @@ class InternVLVisionEmbeddings(nnx.Module):
 
         return embeddings, (patch_height, patch_width)
 
+    @typechecked(mode=MODE)
     def interpolate_pos_encoding(
             self, 
-            embeddings: jaxtyping.Array, 
+            embeddings: HIDDEN_STATES_TYPE, 
             height: int, 
             width: int
-        ) -> jaxtyping.Array:
+        ) -> HIDDEN_STATES_TYPE:
 
         num_patches = embeddings.shape[1] - 1
         num_positions = self.position_embeddings.shape[1] - 1
@@ -317,7 +328,7 @@ class InternVLVisionEmbeddings(nnx.Module):
         patch_pos_embed = jax.image.resize(
             image= patch_pos_embed, 
             shape= (new_height, new_width), 
-            method="cubic"
+            method="bicubic"
         )
 
         patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).view(1, -1, dim)
@@ -378,9 +389,9 @@ class InternVLVisionAttention(nnx.Module):
     @jax.named_scope(f'{NAMED_SCOPE_PREFIX}_vision_attention')
     def __call__(
             self,
-            hidden_states: jaxtyping.Array,
+            hidden_states: HIDDEN_STATES_TYPE,
             attention_mask: jaxtyping.Array,
-        ) -> tuple[LayerCache | None, jaxtyping.Array]:
+        ) -> tuple[LayerCache | None, HIDDEN_STATES_TYPE]:
         r"""
         - The following modules are obmitted due to `use_qk_norm` is False:
             - self.projection_dropout
@@ -463,7 +474,7 @@ class InternVLVisionMLP(nnx.Module):
         )
 
     @jax.named_scope(f'{NAMED_SCOPE_PREFIX}_mlp')
-    def __call__(self, x: jaxtyping.ArrayLike) -> jaxtyping.Array:
+    def __call__(self, x: HIDDEN_STATES_TYPE) -> HIDDEN_STATES_TYPE:
         hidden_states = self.fc1(hidden_states)
         hidden_states = self.activation_fn(hidden_states, approximate=False)
         hidden_states = self.fc2(hidden_states)
@@ -516,11 +527,12 @@ class InternVLVisionLayer(nnx.Module):
             rngs= rngs
         )
 
+    @typechecked(mode=MODE)
     @jax.named_scope(f'{NAMED_SCOPE_PREFIX}_vision_layer')
     def __call__(
             self, 
-            hidden_states: jaxtyping.ArrayLike,
-        ) -> jaxtyping.Array:
+            hidden_states: HIDDEN_STATES_TYPE,
+        ) -> HIDDEN_STATES_TYPE:
         
         attention_output = self.attention(
             self.layernorm_before(hidden_states)
@@ -562,19 +574,19 @@ class InternVLVisionEncoder(nnx.Module):
             for _ in range(config.num_hidden_layers)
         ]
 
+    @typechecked(mode=MODE)
     @jax.named_scope(f'{NAMED_SCOPE_PREFIX}_vision_encode')
     def __call__(
             self, 
-            hidden_states: jaxtyping.Array,
-        ) -> jaxtyping.Array:
+            hidden_states: HIDDEN_STATES_TYPE,
+        ) -> HIDDEN_STATES_TYPE:
         r"""
         Based on model config, dont output attentions and hidden states
         Returns
             hidden_states : last_hidden_states
         """
         for layer_module in self.layer:
-            layer_outputs = layer_module(hidden_states)
-            hidden_states = layer_outputs[0]
+            hidden_states = layer_module(hidden_states)
 
         return hidden_states
 
@@ -600,11 +612,12 @@ class InternVLVisionModel(nnx.Module):
             shd_config= shd_config
         )
 
+    @typechecked(mode=MODE)
     @jax.named_scope(f'{NAMED_SCOPE_PREFIX}_vision_forward')
     def __call__(
             self, 
-            pixel_values: jaxtyping.Array,
-        ) -> jaxtyping.Array:
+            pixel_values: INPUT_IMAGES_TYPE,
+        ) -> HIDDEN_STATES_TYPE:
         r"""
         - Forward implement of InternVLVisionModel with input arguments:
             - bool_masked_pos
