@@ -16,6 +16,9 @@ K_MASK = -2.3819763e38
 LayerCache = dict[str, jaxtyping.Array]
 Cache = dict[str, LayerCache]
 
+from models.utils import typechecked
+from models import MODE
+from .types import TEXT_EMBEDDING_OUT_TYPE
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class ShardingConfig:
@@ -190,8 +193,9 @@ class Embedder(nnx.Module):
         )
         self.shd_config = shd_config
 
+    @typechecked(mode=MODE)
     @jax.named_scope('embedder_encode')
-    def encode(self, x: jaxtyping.ArrayLike) -> jaxtyping.Array:
+    def encode(self, x: jaxtyping.Int[jaxtyping.Array,"B S"]) -> TEXT_EMBEDDING_OUT_TYPE:
         x = self.input_embedding[(x,)]
         x = shard(x, self.shd_config.act_btd)
         return x
