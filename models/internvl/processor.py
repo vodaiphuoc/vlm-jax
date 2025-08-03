@@ -22,4 +22,29 @@ class InternVLProcessor(object):
             return_dict=True, 
             return_tensors="pt"
         )
-        return inputs['input_ids'], inputs['attention_mask'], inputs['pixel_values']
+        return (inputs['input_ids'], inputs['attention_mask'], inputs['pixel_values'])
+
+    @property
+    def start_image_token(self)->str:
+        return self._processor.tokenizer.start_image_token
+
+    @property
+    def start_image_token_id(self)->int:
+        return self._processor.tokenizer.start_image_token_id
+    
+    @property
+    def end_image_token(self)->str:
+        return self._processor.tokenizer.end_image_token
+    
+    @property
+    def end_image_token_id(self)->int:
+        return self._processor.tokenizer.end_image_token_id
+
+    @property
+    def context_image_token(self)->str:
+        return self._processor.tokenizer.context_image_token
+    
+    @property
+    def context_image_token_id(self)->int:
+        return self._processor.tokenizer.context_image_token_id
+    
