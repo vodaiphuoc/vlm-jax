@@ -23,6 +23,7 @@ from models.internvl.types import (
     PIXEL_SHUFFLE_OUTPUT_TYPE,
     MM_PROJ_OUTPUT_TYPE
 )
+from models.qwen2.types import TEXT_EMBEDDING_OUT_TYPE
 from models.qwen2.model import Qwen2, Qwen2ModelConfig
 from models.utils import typechecked
 from models import MODE
@@ -148,40 +149,28 @@ class INternVL3(nnx.Module):
     def __call__(
         self,
             input_ids: INPUT_IDS_TYPE,
-            pixel_values: INPUT_IMAGES_TYPE,
-            attention_mask: jaxtyping.Array,
             position_ids: jaxtyping.Array,
+            cache: Cache | None, 
+            attention_mask: jaxtyping.Array,
+            pixel_values: INPUT_IMAGES_TYPE,
         ):
-
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        vision_feature_layer = (
-            vision_feature_layer if vision_feature_layer is not None else self.config.vision_feature_layer
-        )
-        vision_feature_select_strategy = (
-            vision_feature_select_strategy
-            if vision_feature_select_strategy is not None
-            else self.config.vision_feature_select_strategy
-        )
-
-        if (input_ids is None) ^ (inputs_embeds is not None):
-            raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
-
-
-
+        r"""
+        Args:
+            input_ids: input sequence of tokens.
+            positions: input absolute positions.
+            cache: Attention KV cache or None.
+            attention_mask: transformer input mask.
+        """
         # get text features from text embedding
-        inputs_embeds = self.language_model.embedder(input_ids)
+        inputs_embeds: TEXT_EMBEDDING_OUT_TYPE = self.language_model.embedder(input_ids)
 
         # get image features
-        image_features = self.get_image_features(pixel_values=pixel_values)
+        image_features: MM_PROJ_OUTPUT_TYPE = self.get_image_features(pixel_values=pixel_values)
 
         # image mask
         image_mask = input_ids == self.config.image_token_id
 
-        # merge
+        # merge image feautres with input embeds
         
 
 
