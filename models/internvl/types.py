@@ -5,7 +5,26 @@ class INPUT_IDS_TYPE(jaxtyping.Int[jaxtyping.Array,"B S"]):
     r"""
     Type of input ids (after tokenized) with:
         - dtype: int
-        - shape: (Batch, Sequence length)
+        - shape: (B, S) where B=Batch, S=Sequence length
+    """
+
+class INPUT_MASK_TYPE(jaxtyping.Bool[jaxtyping.Array,"B S"]):
+    r"""
+    Type of `attention_mask` from HF tokeninzer, be used as `input_mask`
+        - dtype: boolen
+        - shape: (B, S) where B=Batch, S=Sequence length
+    """
+
+class ATTENTION_MASK_TYPE(jaxtyping.Bool[jaxtyping.Array,"B S S"]):
+    r"""
+    Type of attention_mask input to attention layer
+        - dtype: boolen
+        - shape: (B, S, S) where B=Batch, S=Sequence length
+    """
+
+class POSITION_IDS_TYPE(jaxtyping.Int[jaxtyping.Array, "B S"]):
+    r"""
+    Type of position ids
     """
 
 class INPUT_IMAGES_TYPE(jaxtyping.UInt8[jaxtyping.Array,"B_I H W C"]):
