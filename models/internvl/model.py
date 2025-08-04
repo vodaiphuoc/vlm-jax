@@ -14,10 +14,12 @@ import jaxtyping
 LayerCache = dict[str, jaxtyping.Array]
 Cache = dict[str, LayerCache]
 
-from .mm_proj import InternVLMultiModalProjector
+from models.internvl.input_utils import make_causal_attn_mask
+from models.internvl.mm_proj import InternVLMultiModalProjector
 from models.internvl.vision.model import InternVLVisionModel, InternVLVisionConfig
 from models.internvl.types import (
-    INPUT_IDS_TYPE, 
+    INPUT_IDS_TYPE,
+    INPUT_MASK_TYPE,
     INPUT_IMAGES_TYPE,
     PIXEL_SHUFFLE_INPUT_TYPE,
     PIXEL_SHUFFLE_OUTPUT_TYPE,
@@ -180,7 +182,7 @@ class INternVL3(nnx.Module):
             input_ids: INPUT_IDS_TYPE,
             position_ids: jaxtyping.Array,
             cache: Cache | None, 
-            attention_mask: jaxtyping.Array,
+            input_mask: INPUT_MASK_TYPE,
             pixel_values: INPUT_IMAGES_TYPE,
         ):
         r"""
@@ -188,7 +190,7 @@ class INternVL3(nnx.Module):
             input_ids: input sequence of tokens.
             positions: input absolute positions.
             cache: Attention KV cache or None.
-            attention_mask: transformer input mask.
+            input_mask: transformer input mask.
         NOTE: input_ids after apply tokenizer has been 
         inserted [...,start_image_token_id, context_image_token_id*image_seq_length*num_patches, end_image_token_id...]
         with image_seq_length is 256, num_patches of a image is 13
@@ -218,18 +220,19 @@ class INternVL3(nnx.Module):
             context_img_token_id = self.config.processsor_config.context_image_token_id
         )
 
+        attention_mask = make_causal_attn_mask(
+            input_ids = input_ids,
+            input_mask = input_mask,
+            start_img_token_id = self.config.processsor_config.start_image_token_id,
+            context_img_token_id = self.config.processsor_config.context_image_token_id,
+            end_img_token_id = self.config.processsor_config.end_image_token_id
+        )
 
         outputs = self.language_model(
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=True,
-            cache_position=cache_position,
-            **kwargs,
+            input_embedd = merged_input_embedd, 
+            position_ids = position_ids,
+            cache = cache,
+            attention_mask = attention_mask
         )
 
         return outputs, cache
