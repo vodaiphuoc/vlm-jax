@@ -76,7 +76,7 @@ class MM_PROJ_OUTPUT_TYPE(jaxtyping.BFloat16[jaxtyping.Array,"B_I 256 896"]):
     r"""
     Type of output of `mm_proj.InternVLMultiModalProjector.__call__` method
         - dtype: bfloat16
-        - shape: (B_I, * , D) where:
+        - shape: (B_I, mm_seq_length , D) where:
             - B_I is batch of all images (with `crop_to_patches`) 
             in batch of inputs
             - 256 is image sequence length
