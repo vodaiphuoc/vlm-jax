@@ -19,6 +19,7 @@ Cache = dict[str, LayerCache]
 from models.utils import typechecked
 from models import MODE
 from .types import TEXT_EMBEDDING_OUT_TYPE
+from models.internvl.types import POSITION_IDS_TYPE, ATTENTION_MASK_TYPE
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class ShardingConfig:
@@ -563,7 +564,7 @@ class DecoderLayer(nnx.Module):
 
     def __call__(
             self,
-            x: jaxtyping.Array,
+            x: TEXT_EMBEDDING_OUT_TYPE,
             segment_pos: jaxtyping.Array,
             cache: LayerCache | None,
             attn_mask: jaxtyping.Array,
@@ -586,9 +587,9 @@ class DecoderLayer(nnx.Module):
         return cache, outputs
 
 
-class Qwen2(nnx.Module):
+class Qwen2Text(nnx.Module):
     """
-    Qwen2 model.
+    Qwen2 Text Model.
     Intent for loading qwen2 0.5 only, so there is no `lm_head`
     """
 
@@ -620,11 +621,10 @@ class Qwen2(nnx.Module):
 
     def __call__(
             self,
-            input_tokens: jaxtyping.Array,  # [B, L]
-            positions: jaxtyping.Array,  # [B, L]
+            input_embedd: TEXT_EMBEDDING_OUT_TYPE,
+            position_ids: POSITION_IDS_TYPE,
             cache: Cache | None,  # (sequence length L')
-            attention_mask: jaxtyping.Array,  # [B, L, L']
-            output_hidden_states: bool = False,
+            attention_mask: ATTENTION_MASK_TYPE
         ) -> tuple[jaxtyping.Array, Cache | None]:
         r"""Qwen2 model.
         Args:
@@ -635,20 +635,20 @@ class Qwen2(nnx.Module):
             output_hidden_states: whether to output the hidden states.
 
         Returns:
-            predicted_logits, new_cache
+            tuple of predicted_logits, new_cache
 
             predicted_logits: output logits predicted by the model
             new_cache: updated cache if the input cache is not None, None elsewhere.
         """
         new_cache = None if cache is None else {}
-        x = self.embedder.encode(input_tokens)
+        x = input_embedd
 
         for i, layer in enumerate(self.layers):
             layer_name = f'layer_{i}'
             layer_cache = cache[layer_name] if cache else None
             layer_cache, x = layer(
                 x,
-                positions,
+                position_ids,
                 layer_cache,
                 attention_mask,
             )
@@ -656,8 +656,6 @@ class Qwen2(nnx.Module):
                 new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
 
         x = self.final_norm(x)
-        if output_hidden_states:
-            self.sow(nnx.Intermediate, 'all_hidden_states', x)
         
-        return x, new_cache  # pytype: disable=bad-return-type
+        return x, new_cache
 
