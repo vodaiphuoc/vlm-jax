@@ -178,12 +178,12 @@ class INternVL3(nnx.Module):
 
     @typechecked(mode=MODE)
     def __call__(
-        self,
+            self,
             input_ids: INPUT_IDS_TYPE,
             position_ids: jaxtyping.Array,
             cache: Cache | None, 
             input_mask: INPUT_MASK_TYPE,
-            pixel_values: INPUT_IMAGES_TYPE,
+            pixel_values: INPUT_IMAGES_TYPE|None,
         ):
         r"""
         Args:
