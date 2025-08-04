@@ -1,5 +1,5 @@
 """InternVL3 1B hf"""
-
+from functools import partial
 import dataclasses
 from typing import Tuple
 import flax
@@ -28,6 +28,7 @@ from models.qwen2.model import Qwen2, Qwen2ModelConfig
 from models.utils import typechecked
 from models import MODE
 
+from models.internvl.processor import InternVLProcessorConfig
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class InternVL3Config:
@@ -35,6 +36,7 @@ class InternVL3Config:
     projector_hidden_act: str
     image_token_id: int
     vision_feature_select_strategy: str
+    processsor_config: InternVLProcessorConfig
     vision_config: InternVLVisionConfig
     text_config: Qwen2ModelConfig
 
@@ -45,9 +47,36 @@ class InternVL3Config:
             projector_hidden_act = "gelu",
             image_token_id = 151667,
             vision_feature_select_strategy = "default",
+            processsor_config = InternVLProcessorConfig(),
             vision_config =  InternVLVisionConfig.internvl3_1b_hf_vision(),
             text_config = Qwen2ModelConfig.qwen2_0_5_b()
         )
+
+@partial(jax.jit,static_argnames = "context_img_token_id")
+@typechecked(mode = MODE)
+def merge_embeddings(
+        input_ids: INPUT_IDS_TYPE, 
+        input_embedd: TEXT_EMBEDDING_OUT_TYPE,
+        image_features: MM_PROJ_OUTPUT_TYPE,
+        context_img_token_id:int
+    )->TEXT_EMBEDDING_OUT_TYPE:
+    r"""
+    Merge image features into input embedded
+    """
+    N, SI, D = image_features.shape
+    image_features = image_features.reshape((N*SI,D))
+
+    # where to replace context image ids with image features
+    x_img_ids, y_img_ids = jnp.where(
+        input_ids == context_img_token_id, 
+        size = N*SI
+    )
+
+    # merging
+    merged_input_embedd = input_embedd.at[x_img_ids, y_img_ids, : ].set(image_features)
+
+    return merged_input_embedd
+
 
 class INternVL3(nnx.Module):
     """
@@ -160,45 +189,35 @@ class INternVL3(nnx.Module):
             positions: input absolute positions.
             cache: Attention KV cache or None.
             attention_mask: transformer input mask.
+        NOTE: input_ids after apply tokenizer has been 
+        inserted [...,start_image_token_id, context_image_token_id*image_seq_length*num_patches, end_image_token_id...]
+        with image_seq_length is 256, num_patches of a image is 13
+
         """
         # get text features from text embedding
         inputs_embeds: TEXT_EMBEDDING_OUT_TYPE = self.language_model.embedder(input_ids)
 
         # get image features
         image_features: MM_PROJ_OUTPUT_TYPE = self.get_image_features(pixel_values=pixel_values)
-
+        
         # image mask
         image_mask = input_ids == self.config.image_token_id
 
+        # check equal
+        n_image_features = image_features.shape[0] * image_features.shape[1]
+        n_image_tokens = image_mask.sum()
+        assert n_image_features == n_image_tokens, \
+            f"Image features and image tokens do not match: tokens: {n_image_tokens}, features {n_image_features}"
+
         # merge image feautres with input embeds
         
+        merged_input_embedd = merge_embeddings(
+            input_ids = input_ids, 
+            input_embedd = inputs_embeds,
+            image_features = image_features,
+            context_img_token_id = self.config.processsor_config.context_image_token_id
+        )
 
-
-        if pixel_values is not None:
-            image_features = self.get_image_features(
-                pixel_values=pixel_values,
-                vision_feature_layer=vision_feature_layer,
-                vision_feature_select_strategy=vision_feature_select_strategy,
-            )
-
-            if input_ids is None:
-                special_image_mask = inputs_embeds == self.get_input_embeddings()(
-                    torch.tensor(self.config.image_token_id, dtype=torch.long, device=inputs_embeds.device)
-                )
-                special_image_mask = special_image_mask.all(-1)
-            else:
-                special_image_mask = input_ids == self.config.image_token_id
-
-            n_image_tokens = (special_image_mask).sum()
-            special_image_mask = special_image_mask.unsqueeze(-1).expand_as(inputs_embeds).to(inputs_embeds.device)
-
-            if not is_torchdynamo_compiling() and inputs_embeds[special_image_mask].numel() != image_features.numel():
-                n_image_features = image_features.shape[0] * image_features.shape[1]
-                raise ValueError(
-                    f"Image features and image tokens do not match: tokens: {n_image_tokens}, features {n_image_features}"
-                )
-            image_features = image_features.to(inputs_embeds.device, inputs_embeds.dtype)
-            inputs_embeds = inputs_embeds.masked_scatter(special_image_mask, image_features)
 
         outputs = self.language_model(
             attention_mask=attention_mask,
