@@ -430,19 +430,6 @@ class InternVLVisionAttention(nnx.Module):
         outputs = shard(outputs, self.shd_config.act_btd)
         return outputs
 
-    @property
-    def head_dim(self):
-        return self.o_proj.shape[1]
-
-    @property
-    def num_heads(self):
-        return self.q_proj.shape[0]
-
-    @property
-    def num_kv_heads(self):
-        return self.kv_proj.shape[1]
-
-
 class InternVLVisionMLP(nnx.Module):
     """InternVLVisionMLP module."""
 
@@ -490,8 +477,16 @@ class InternVLVisionLayer(nnx.Module):
         ):
 
         self.seq_len_dim = 1
-        self.attention = InternVLVisionAttention(config)
-        self.mlp = InternVLVisionMLP(config)
+        self.attention = InternVLVisionAttention(
+            config = config, 
+            rngs = rngs, 
+            shd_config = shd_config
+        )
+        self.mlp = InternVLVisionMLP(
+            config = config, 
+            rngs = rngs, 
+            shd_config= shd_config
+        )
 
         # use `layer_norm` for target model only
         if config.norm_type != "layer_norm":
