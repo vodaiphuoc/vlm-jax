@@ -202,7 +202,7 @@ class InternVLVisionPatchEmbeddings(nnx.Module):
             in_features=num_channels,
             out_features= hidden_size, 
             kernel_size=patch_size,
-            stride=patch_size,
+            strides=patch_size,
             rngs= rngs
         )
     
@@ -605,11 +605,15 @@ class InternVLVisionModel(nnx.Module):
 
         self.config = config
 
-        self.embeddings = InternVLVisionEmbeddings(config)
+        self.embeddings = InternVLVisionEmbeddings(
+            config = config, 
+            rngs = rngs, 
+            shd_config = shd_config
+        )
         self.encoder = InternVLVisionEncoder(
             config = config, 
-            rngs= rngs, 
-            shd_config= shd_config
+            rngs = rngs, 
+            shd_config = shd_config
         )
 
     @typechecked(mode=MODE)
