@@ -14,9 +14,10 @@ import jaxtyping
 LayerCache = dict[str, jaxtyping.Array]
 Cache = dict[str, LayerCache]
 
+from models.internvl.configs import InternVL3Config
 from models.internvl.input_utils import make_causal_attn_mask
 from models.internvl.mm_proj import InternVLMultiModalProjector
-from models.internvl.vision.model import InternVLVisionModel, InternVLVisionConfig
+from models.internvl.vision.model import InternVLVisionModel
 from models.internvl.types import (
     INPUT_IDS_TYPE,
     INPUT_MASK_TYPE,
@@ -26,33 +27,12 @@ from models.internvl.types import (
     MM_PROJ_OUTPUT_TYPE
 )
 from models.qwen2.types import TEXT_EMBEDDING_OUT_TYPE
-from models.qwen2.model import Qwen2, Qwen2ModelConfig
+from models.qwen2.model import Qwen2Text
 from models.utils import typechecked
 from models import MODE
 
-from models.internvl.processor import InternVLProcessorConfig
 
-@dataclasses.dataclass(slots=True, frozen=True)
-class InternVL3Config:
-    downsample_ratio: float
-    projector_hidden_act: str
-    image_token_id: int
-    vision_feature_select_strategy: str
-    processsor_config: InternVLProcessorConfig
-    vision_config: InternVLVisionConfig
-    text_config: Qwen2ModelConfig
 
-    @classmethod
-    def internvl3_1b_hf(cls):
-        return cls(
-            downsample_ratio = 0.5,
-            projector_hidden_act = "gelu",
-            image_token_id = 151667,
-            vision_feature_select_strategy = "default",
-            processsor_config = InternVLProcessorConfig(),
-            vision_config =  InternVLVisionConfig.internvl3_1b_hf_vision(),
-            text_config = Qwen2ModelConfig.qwen2_0_5_b()
-        )
 
 @partial(jax.jit,static_argnames = "context_img_token_id")
 @typechecked(mode = MODE)
@@ -99,7 +79,7 @@ class INternVL3(nnx.Module):
             config = config,
             rngs = rngs
         )
-        self.language_model = Qwen2(
+        self.language_model = Qwen2Text(
             config = config.text_config,
             rngs= rngs
         )

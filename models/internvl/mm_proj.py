@@ -1,7 +1,7 @@
 from flax import nnx
 import jax
 import jaxtyping
-from .model import InternVL3Config
+from models.internvl.configs import InternVL3Config
 from models.utils import typechecked
 from models import MODE
 from models.internvl.types import MM_PROJ_INPUT_TYPE, MM_PROJ_OUTPUT_TYPE
