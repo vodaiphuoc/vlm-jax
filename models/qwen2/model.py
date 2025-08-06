@@ -587,10 +587,9 @@ class DecoderLayer(nnx.Module):
         return cache, outputs
 
 
-class Qwen2Text(nnx.Module):
+class Qwen2ForCausalLM(nnx.Module):
     """
-    Qwen2 Text Model.
-    Intent for loading qwen2 0.5 only, so there is no `lm_head`
+    Qwen2ForCausalLM Model.
     """
 
     def __init__(
@@ -626,7 +625,7 @@ class Qwen2Text(nnx.Module):
             cache: Cache | None,  # (sequence length L')
             attention_mask: ATTENTION_MASK_TYPE
         ) -> tuple[jaxtyping.Array, Cache | None]:
-        r"""Qwen2 model.
+        r"""Qwen2ForCausalLM model.
         Args:
             input_tokens: input sequence of tokens.
             positions: input absolute positions.
