@@ -12,16 +12,14 @@ import jaxtyping
 
 from models import MODE
 from models.utils import typechecked
-from models.internvl.types import (
+from models.types import (
     INPUT_IMAGES_TYPE, 
-    HIDDEN_STATES_TYPE,
+    VISION_HIDDEN_STATES_TYPE,
     PATCH_EMBEDDING_OUT_TYPE
 )
 
 K_MASK = -2.3819763e38
 
-LayerCache = dict[str, jaxtyping.Array]
-Cache = dict[str, LayerCache]
 NAMED_SCOPE_PREFIX = "internvl"
 
 
@@ -278,7 +276,7 @@ class InternVLVisionEmbeddings(nnx.Module):
     def __call__(
             self,
             pixel_values: INPUT_IMAGES_TYPE
-        )->Tuple[HIDDEN_STATES_TYPE, Tuple[int]]:
+        )->Tuple[VISION_HIDDEN_STATES_TYPE, Tuple[int]]:
         r"""
         bool_masked_pos is None based on implement of huggingface
         so [the section]() is remove
@@ -301,10 +299,10 @@ class InternVLVisionEmbeddings(nnx.Module):
     @typechecked(mode=MODE)
     def interpolate_pos_encoding(
             self, 
-            embeddings: HIDDEN_STATES_TYPE, 
+            embeddings: VISION_HIDDEN_STATES_TYPE, 
             height: int, 
             width: int
-        ) -> HIDDEN_STATES_TYPE:
+        ) -> VISION_HIDDEN_STATES_TYPE:
 
         num_patches = embeddings.shape[1] - 1
         num_positions = self.position_embeddings.shape[1] - 1
@@ -389,9 +387,9 @@ class InternVLVisionAttention(nnx.Module):
     @jax.named_scope(f'{NAMED_SCOPE_PREFIX}_vision_attention')
     def __call__(
             self,
-            hidden_states: HIDDEN_STATES_TYPE,
+            hidden_states: VISION_HIDDEN_STATES_TYPE,
             attention_mask: jaxtyping.Array,
-        ) -> tuple[LayerCache | None, HIDDEN_STATES_TYPE]:
+        ) -> VISION_HIDDEN_STATES_TYPE:
         r"""
         - The following modules are obmitted due to `use_qk_norm` is False:
             - self.projection_dropout
@@ -461,7 +459,7 @@ class InternVLVisionMLP(nnx.Module):
         )
 
     @jax.named_scope(f'{NAMED_SCOPE_PREFIX}_mlp')
-    def __call__(self, x: HIDDEN_STATES_TYPE) -> HIDDEN_STATES_TYPE:
+    def __call__(self, x: VISION_HIDDEN_STATES_TYPE) -> VISION_HIDDEN_STATES_TYPE:
         hidden_states = self.fc1(hidden_states)
         hidden_states = self.activation_fn(hidden_states, approximate=False)
         hidden_states = self.fc2(hidden_states)
@@ -526,8 +524,8 @@ class InternVLVisionLayer(nnx.Module):
     @jax.named_scope(f'{NAMED_SCOPE_PREFIX}_vision_layer')
     def __call__(
             self, 
-            hidden_states: HIDDEN_STATES_TYPE,
-        ) -> HIDDEN_STATES_TYPE:
+            hidden_states: VISION_HIDDEN_STATES_TYPE,
+        ) -> VISION_HIDDEN_STATES_TYPE:
         
         attention_output = self.attention(
             self.layernorm_before(hidden_states)
@@ -573,8 +571,8 @@ class InternVLVisionEncoder(nnx.Module):
     @jax.named_scope(f'{NAMED_SCOPE_PREFIX}_vision_encode')
     def __call__(
             self, 
-            hidden_states: HIDDEN_STATES_TYPE,
-        ) -> HIDDEN_STATES_TYPE:
+            hidden_states: VISION_HIDDEN_STATES_TYPE,
+        ) -> VISION_HIDDEN_STATES_TYPE:
         r"""
         Based on model config, dont output attentions and hidden states
         Returns
@@ -616,7 +614,7 @@ class InternVLVisionModel(nnx.Module):
     def __call__(
             self, 
             pixel_values: INPUT_IMAGES_TYPE,
-        ) -> HIDDEN_STATES_TYPE:
+        ) -> VISION_HIDDEN_STATES_TYPE:
         r"""
         - Forward implement of InternVLVisionModel with input arguments:
             - bool_masked_pos
