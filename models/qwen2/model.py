@@ -1,7 +1,7 @@
 """Qwen2 model."""
 
 import dataclasses
-from typing import Tuple
+from typing import Tuple, Dict, TypedDict
 import flax
 from flax import nnx
 import jax
@@ -10,109 +10,21 @@ from jax.interpreters import pxla
 import jax.sharding as shd
 import jaxtyping
 
-
 K_MASK = -2.3819763e38
 
-LayerCache = dict[str, jaxtyping.Array]
-Cache = dict[str, LayerCache]
 
 from models.utils import typechecked
 from models import MODE
-from .types import TEXT_EMBEDDING_OUT_TYPE
-from models.internvl.types import POSITION_IDS_TYPE, ATTENTION_MASK_TYPE
-
-@dataclasses.dataclass(slots=True, frozen=True)
-class ShardingConfig:
-    """Sharding configuration for Qwen2 model."""
-
-    emb_vd: Tuple[str | None, ...]
-    emb_dv: Tuple[str | None, ...]
-    q_weight_ndh: Tuple[str | None, ...]
-    kv_weight_ndh: Tuple[str | None, ...]
-    o_weight_nhd: Tuple[str | None, ...]
-    ffw_weight_df: Tuple[str | None, ...]
-    ffw_weight_fd: Tuple[str | None, ...]
-    rms_norm_weight: Tuple[str | None, ...]
-    act_btd: Tuple[str | None, ...]
-    act_btf: Tuple[str | None, ...]
-    act_btnh: Tuple[str | None, ...]
-    exp_weight_cdf: Tuple[str | None, ...]
-    exp_weight_cfd: Tuple[str | None, ...]
-
-    @staticmethod
-    def get_default_sharding(is_sampling: bool = False):
-        fsdp = 'fsdp' if not is_sampling else None
-
-        return ShardingConfig(
-            emb_vd=('tp', fsdp),
-            emb_dv=(fsdp, 'tp'),
-            q_weight_ndh=('tp', fsdp, None),
-            kv_weight_ndh=('tp', fsdp, None),
-            o_weight_nhd=('tp', None, fsdp),
-            ffw_weight_df=(fsdp, 'tp'),
-            ffw_weight_fd=('tp', fsdp),
-            rms_norm_weight=('tp',),
-            act_btd=('fsdp', None, None if is_sampling else 'tp'),
-            act_btf=('fsdp', None, 'tp'),
-            act_btnh=('fsdp', None, 'tp', None),
-            exp_weight_cdf=('fsdp', None, 'tp'),
-            exp_weight_cfd=('fsdp', 'tp', None),
-        )
-
-
-@dataclasses.dataclass(frozen=True)
-class Qwen2ModelConfig:
-    r"""
-    Configuration for the Qwen2 model
-    
-    Args:
-        num_layers (int): alias of `num_hidden_layers` on hf config  
-        vocab_size (int): vocab size of vocab embedding
-        embed_dim (int): alias of `hidden_size` on hf config 
-        hidden_dim (int): alias of `intermediate_size` on hf config 
-        num_heads (int): alias of `num_attention_heads` on hf config
-        head_dim (int): Qwen2's config doesnt have `head_dim`. So it will be:
-            ```math
-            embed_dim/num_heads
-            ```
-            or in hf
-            ```math
-            hidden_size/num_attention_heads
-            ```
-        see more in [here](https://github.com/huggingface/transformers/blob/6c3f27ba6186897d072b87e9e6e7c63d97f0fe99/src/transformers/models/qwen2/modeling_qwen2.py#L128C1-L128C102)
-        
-        num_kv_heads (int): alias of `num_key_value_heads` on hf config
-        norm_eps (float): alias of `rms_norm_eps` on hf config
-        rope_theta (int): rope_theta for ROPE
-    """
-
-    num_layers: int  # num_hidden_layers
-    vocab_size: int
-    embed_dim: int   # hidden_size
-    hidden_dim: int  # intermediate_size
-    num_heads: int   # num_attention_heads
-    head_dim: int
-    num_kv_heads: int
-    rope_theta: int
-    norm_eps: float
-    num_experts: int | None = None
-    num_experts_per_tok: int | None = None
-    shd_config: ShardingConfig = ShardingConfig.get_default_sharding()
-
-    @classmethod
-    def qwen2_0_5_b(cls):  # qwen2-0.5B
-        return cls(
-            num_layers=24,
-            vocab_size=151936,
-            embed_dim=896,
-            hidden_dim=4864,
-            num_heads=14,
-            head_dim= 896//14, # 64
-            num_kv_heads=2,
-            norm_eps=1e-06,
-            rope_theta=1_000_000,
-        )
-
+from .configs import ShardingConfig, Qwen2ModelConfig
+from models.types import (
+    POSITION_IDS_TYPE, 
+    ATTENTION_MASK_TYPE,
+    Q_PROJ_VALUES_TYPE,
+    KV_PROJ_VALUES_TYPE,
+    HIDDEN_STATE_TYPE,
+    Cache,
+    LayerCache
+)
 
 
 def shard(x: jnp.ndarray, s: Tuple[str, ...]):
@@ -126,7 +38,11 @@ def shard(x: jnp.ndarray, s: Tuple[str, ...]):
 
 
 class Einsum(nnx.Module):
-    """Einsum is a convenience module for parameterized tensor multiplication."""
+    r"""
+    Einsum is a convenience module for parameterized tensor multiplication.
+    Args:
+        einsum_str (str): format input shape, weight shape -> output shape
+    """
 
     def __init__(
             self,
@@ -151,6 +67,8 @@ class Einsum(nnx.Module):
 class EinsumBias(Einsum):
     r"""
     Einsum for multiplication with bias
+    Args:
+        einsum_str (str): format input shape, weight shape -> output shape
     """
     def __init__(
             self,
@@ -196,7 +114,7 @@ class Embedder(nnx.Module):
 
     @typechecked(mode=MODE)
     @jax.named_scope('embedder_encode')
-    def encode(self, x: jaxtyping.Int[jaxtyping.Array,"B S"]) -> TEXT_EMBEDDING_OUT_TYPE:
+    def encode(self, x: jaxtyping.Int[jaxtyping.Array,"B S"]) -> HIDDEN_STATE_TYPE:
         x = self.input_embedding[(x,)]
         x = shard(x, self.shd_config.act_btd)
         return x
@@ -205,14 +123,16 @@ class Embedder(nnx.Module):
     def decode(self, x: jaxtyping.ArrayLike) -> jaxtyping.Array:
         return jnp.dot(x, self.input_embedding.value.T)
 
-
+@typechecked(mode= MODE)
 def apply_rope(
-        inputs: jaxtyping.Array,  # [B, L]
-        positions: jaxtyping.Array,  # [B, L]
+        projected: Q_PROJ_VALUES_TYPE|KV_PROJ_VALUES_TYPE,
+        positions: POSITION_IDS_TYPE,
         head_dim: int,
         rope_theta: int = 1_000_000,
-    ) -> jaxtyping.Array:
-    """Applies RoPE."""
+    ) -> Q_PROJ_VALUES_TYPE|KV_PROJ_VALUES_TYPE:
+    r"""
+    Applies RoPE for projected query or key
+    """
     fraction = 2 * jnp.arange(0, head_dim // 2, dtype=jnp.float32) / head_dim
     timescale = rope_theta**fraction
 
@@ -223,11 +143,11 @@ def apply_rope(
     sin = jnp.sin(sinusoid_inp)
     cos = jnp.cos(sinusoid_inp)
 
-    first_half, second_half = jnp.split(inputs, 2, axis=-1)
+    first_half, second_half = jnp.split(projected, 2, axis=-1)
     first_part = first_half * cos - second_half * sin
     second_part = second_half * cos + first_half * sin
     out = jnp.concatenate([first_part, second_part], axis=-1)
-    return out.astype(inputs.dtype)
+    return out.astype(projected.dtype)
 
 
 class RMSNorm(nnx.Module):
@@ -307,10 +227,10 @@ class Attention(nnx.Module):
     @jax.named_scope('attention')
     def __call__(
             self,
-            x: jaxtyping.Array,
-            segment_pos: jaxtyping.Array,
-            cache: LayerCache | None,
-            attn_mask: jaxtyping.Array | None,
+            x: HIDDEN_STATE_TYPE,
+            position_ids: POSITION_IDS_TYPE,
+            layer_cache: LayerCache | None,
+            attn_mask: ATTENTION_MASK_TYPE | None,
         ) -> tuple[LayerCache | None, jaxtyping.Array]:
         seq_len = x.shape[1]
 
@@ -324,34 +244,37 @@ class Attention(nnx.Module):
 
         query_proj = apply_rope(
             query_proj,
-            segment_pos,
+            position_ids,
             head_dim=self.head_dim,
         )
         key_proj = apply_rope(
             key_proj,
-            segment_pos,
+            position_ids,
             head_dim=self.head_dim,
         )
 
-        if cache is not None:
-            end_index = cache['end_index'][0]
-            slice_indices = (0, end_index % cache['v'].shape[1], 0, 0)
-            value_proj = jax.lax.dynamic_update_slice(
-                cache['v'],
+        if layer_cache is not None:
+            end_index = layer_cache['end_index'][0]
+            slice_indices = (0, end_index % layer_cache['v'].shape[1], 0, 0)
+            value_proj: KV_PROJ_VALUES_TYPE = jax.lax.dynamic_update_slice(
+                layer_cache['v'],
                 value_proj,
                 slice_indices,
             )
-            key_proj = jax.lax.dynamic_update_slice(
-                cache['k'], key_proj, slice_indices
+            key_proj: KV_PROJ_VALUES_TYPE = jax.lax.dynamic_update_slice(
+                layer_cache['k'], key_proj, slice_indices
             )
 
-        b, t, qh, d = query_proj.shape
-        _, s, kh, _ = key_proj.shape
+        b, t, n, h = query_proj.shape
+        _, s, k, _ = key_proj.shape
 
         # GQA
-        query_proj = query_proj.reshape((b, t, kh, qh // kh, d))
-        attn = jnp.einsum('BTHGD,BSHD->BHGTS', query_proj, key_proj) * self.scale
-        attn = attn.reshape((b, qh, t, s))
+        query_proj = query_proj.reshape((b, t, k, n//k, h))
+
+        # NOTE: n//k == G
+        attn = jnp.einsum('BTKGH,BSKH->BKGTS', query_proj, key_proj) * self.scale
+        # [B, K, G, T, S] -> [B, K*G, T, S] <-> [B, N, T, S]
+        attn = attn.reshape((b, n, t, s))
 
         if attn_mask is not None:
             attn = jnp.where((jnp.expand_dims(attn_mask, -3)), attn, K_MASK)
@@ -360,18 +283,19 @@ class Attention(nnx.Module):
             key_proj.dtype
         )
 
-        attn = attn.reshape((b, kh, qh // kh, t, s))
-        qkv = jnp.einsum('BHGTS,BSHD->BTHGD', attn, value_proj)
-        qkv = qkv.reshape((b, t, qh, d))
+        attn = attn.reshape((b, k, n//k, t, s))
+        qkv = jnp.einsum('BKGTS,BSKH->BTKGH', attn, value_proj)
+        # [B, T, K, G, H] -> [B, T, K*G, H] <-> [B, T, N, H]
+        qkv = qkv.reshape((b, t, n, h))
 
         outputs = self.o_proj(qkv)
         outputs = shard(outputs, self.shd_config.act_btd)
 
-        if cache is not None:
+        if layer_cache is not None:
             new_cache = {
                 'v': value_proj,
                 'k': key_proj,
-                'end_index': cache['end_index'] + seq_len,
+                'end_index': layer_cache['end_index'] + seq_len,
             }
         else:
             new_cache = None
@@ -564,18 +488,18 @@ class DecoderLayer(nnx.Module):
 
     def __call__(
             self,
-            x: TEXT_EMBEDDING_OUT_TYPE,
-            segment_pos: jaxtyping.Array,
-            cache: LayerCache | None,
-            attn_mask: jaxtyping.Array,
+            x: HIDDEN_STATE_TYPE,
+            position_ids: POSITION_IDS_TYPE,
+            layer_cache: LayerCache | None,
+            attn_mask: ATTENTION_MASK_TYPE | None,
         ) -> tuple[LayerCache | None, jaxtyping.Array]:
         
         inputs_normalized = self.input_layernorm(x)
         
-        cache, attn_output = self.attn(
+        layer_cache, attn_output = self.attn(
             inputs_normalized,
-            segment_pos,
-            cache,
+            position_ids,
+            layer_cache,
             attn_mask,
         )
 
@@ -584,7 +508,7 @@ class DecoderLayer(nnx.Module):
         attn_output = self.post_attention_layernorm(attn_output)
         outputs = self.mlp(attn_output)
         outputs = residual + outputs
-        return cache, outputs
+        return layer_cache, outputs
 
 
 class Qwen2ForCausalLM(nnx.Module):
@@ -620,7 +544,7 @@ class Qwen2ForCausalLM(nnx.Module):
 
     def __call__(
             self,
-            input_embedd: TEXT_EMBEDDING_OUT_TYPE,
+            input_embedd: HIDDEN_STATE_TYPE,
             position_ids: POSITION_IDS_TYPE,
             cache: Cache | None,  # (sequence length L')
             attention_mask: ATTENTION_MASK_TYPE
@@ -646,10 +570,10 @@ class Qwen2ForCausalLM(nnx.Module):
             layer_name = f'layer_{i}'
             layer_cache = cache[layer_name] if cache else None
             layer_cache, x = layer(
-                x,
-                position_ids,
-                layer_cache,
-                attention_mask,
+                x = x,
+                position_ids = position_ids,
+                cache = layer_cache,
+                attention_mask = attention_mask,
             )
             if cache is not None:
                 new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
