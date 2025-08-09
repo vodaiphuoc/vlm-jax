@@ -2,7 +2,7 @@ from typing import Dict, List
 import jax.numpy as jnp
 import dataclasses
 from transformers import AutoProcessor
-from models.internvl.types import CONVERSATION
+from models.types import CONVERSATION
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class InternVLProcessorConfig(object):

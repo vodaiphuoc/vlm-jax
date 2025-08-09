@@ -11,26 +11,26 @@ import jax.sharding as shd
 import jaxtyping
 
 
-LayerCache = dict[str, jaxtyping.Array]
-Cache = dict[str, LayerCache]
-
 from models.internvl.configs import InternVL3Config
-from models.internvl.input_utils import make_causal_attn_mask
 from models.internvl.mm_proj import InternVLMultiModalProjector
 from models.internvl.vision.model import InternVLVisionModel
-from models.internvl.types import (
+
+from models.utils import typechecked
+from models import MODE
+from models.masks import make_causal_attn_mask
+from models.types import (
     INPUT_IDS_TYPE,
+    POSITION_IDS_TYPE,
     INPUT_MASK_TYPE,
     INPUT_IMAGES_TYPE,
     PIXEL_SHUFFLE_INPUT_TYPE,
     PIXEL_SHUFFLE_OUTPUT_TYPE,
-    MM_PROJ_OUTPUT_TYPE
+    MM_PROJ_OUTPUT_TYPE,
+    HIDDEN_STATE_TYPE,
+    Cache
 )
-from models.qwen2.types import TEXT_EMBEDDING_OUT_TYPE
-from models.qwen2.model import Qwen2Text
-from models.utils import typechecked
-from models import MODE
 
+from models.qwen2.model import Qwen2ForCausalLM
 
 
 
@@ -38,10 +38,10 @@ from models import MODE
 @typechecked(mode = MODE)
 def merge_embeddings(
         input_ids: INPUT_IDS_TYPE, 
-        input_embedd: TEXT_EMBEDDING_OUT_TYPE,
+        input_embedd: HIDDEN_STATE_TYPE,
         image_features: MM_PROJ_OUTPUT_TYPE,
         context_img_token_id:int
-    )->TEXT_EMBEDDING_OUT_TYPE:
+    )->HIDDEN_STATE_TYPE:
     r"""
     Merge image features into input embedded
     """
@@ -79,9 +79,9 @@ class INternVL3(nnx.Module):
             config = config,
             rngs = rngs
         )
-        self.language_model = Qwen2Text(
+        self.language_model = Qwen2ForCausalLM(
             config = config.text_config,
-            rngs= rngs
+            rngs = rngs
         )
 
     @typechecked(mode=MODE)
@@ -160,7 +160,7 @@ class INternVL3(nnx.Module):
     def __call__(
             self,
             input_ids: INPUT_IDS_TYPE,
-            position_ids: jaxtyping.Array,
+            position_ids: POSITION_IDS_TYPE,
             cache: Cache | None, 
             input_mask: INPUT_MASK_TYPE,
             pixel_values: INPUT_IMAGES_TYPE|None,
@@ -177,7 +177,7 @@ class INternVL3(nnx.Module):
 
         """
         # get text features from text embedding
-        inputs_embeds: TEXT_EMBEDDING_OUT_TYPE = self.language_model.embedder(input_ids)
+        inputs_embeds: HIDDEN_STATE_TYPE = self.language_model.embedder(input_ids)
 
         # get image features
         image_features: MM_PROJ_OUTPUT_TYPE = self.get_image_features(pixel_values=pixel_values)
