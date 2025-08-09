@@ -232,7 +232,7 @@ class Attention(nnx.Module):
             position_ids: POSITION_IDS_TYPE,
             layer_cache: LayerCache | None,
             attn_mask: ATTENTION_MASK_TYPE | None,
-        ) -> tuple[LayerCache | None, jaxtyping.Array]:
+        ) -> tuple[LayerCache | None, ATTN_HIDDEN_STATES_TYPE]:
         seq_len = x.shape[1]
 
         query_proj = self.q_proj(x)

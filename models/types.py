@@ -122,8 +122,9 @@ class ATTN_HIDDEN_STATES_TYPE(
         jaxtyping.Array
     ):
     r"""
-    Type of hidden state input to attention also type of output 
-    of `vision.model.InternVLVisionPatchEmbeddings` class
+    Type of hidden state input to attention also type of output \
+of `vision.model.InternVLVisionPatchEmbeddings` class.
+
         - dtype: bfloat16
         - shape: (B, L, D) where:
             - B is batch of input text
