@@ -21,7 +21,7 @@ from models.types import (
     ATTENTION_MASK_TYPE,
     Q_PROJ_VALUES_TYPE,
     KV_PROJ_VALUES_TYPE,
-    HIDDEN_STATE_TYPE,
+    ATTN_HIDDEN_STATES_TYPE,
     Cache,
     LayerCache
 )
@@ -114,7 +114,7 @@ class Embedder(nnx.Module):
 
     @typechecked(mode=MODE)
     @jax.named_scope('embedder_encode')
-    def encode(self, x: jaxtyping.Int[jaxtyping.Array,"B S"]) -> HIDDEN_STATE_TYPE:
+    def encode(self, x: jaxtyping.Int[jaxtyping.Array,"B S"]) -> ATTN_HIDDEN_STATES_TYPE:
         x = self.input_embedding[(x,)]
         x = shard(x, self.shd_config.act_btd)
         return x
@@ -224,10 +224,11 @@ class Attention(nnx.Module):
         self.n_rep = config.num_heads // config.num_kv_heads
         self.scale = self.head_dim**-0.5
 
+    @typechecked(mode=MODE)
     @jax.named_scope('attention')
     def __call__(
             self,
-            x: HIDDEN_STATE_TYPE,
+            x: ATTN_HIDDEN_STATES_TYPE,
             position_ids: POSITION_IDS_TYPE,
             layer_cache: LayerCache | None,
             attn_mask: ATTENTION_MASK_TYPE | None,
@@ -312,7 +313,7 @@ class Attention(nnx.Module):
 
     @property
     def num_kv_heads(self):
-        return self.kv_proj.shape[1]
+        return self.k_proj.shape[1]
 
 
 class MoELayer(nnx.Module):
@@ -486,9 +487,10 @@ class DecoderLayer(nnx.Module):
                 shd_config=shd_config,
             )
 
+    @typechecked(mode=MODE)
     def __call__(
             self,
-            x: HIDDEN_STATE_TYPE,
+            x: ATTN_HIDDEN_STATES_TYPE,
             position_ids: POSITION_IDS_TYPE,
             layer_cache: LayerCache | None,
             attn_mask: ATTENTION_MASK_TYPE | None,
@@ -542,9 +544,10 @@ class Qwen2ForCausalLM(nnx.Module):
             shd_config=shd_config,
         )
 
+    @typechecked(mode=MODE)
     def __call__(
             self,
-            input_embedd: HIDDEN_STATE_TYPE,
+            input_embedd: ATTN_HIDDEN_STATES_TYPE,
             position_ids: POSITION_IDS_TYPE,
             cache: Cache | None,  # (sequence length L')
             attention_mask: ATTENTION_MASK_TYPE
