@@ -17,7 +17,7 @@ from models.internvl.vision.model import InternVLVisionModel
 
 from models.utils import typechecked
 from models import MODE
-from models.masks import make_causal_attn_mask
+from models.masks import make_causal_attn_mask_for_vision
 from models.types import (
     INPUT_IDS_TYPE,
     POSITION_IDS_TYPE,
@@ -26,7 +26,7 @@ from models.types import (
     PIXEL_SHUFFLE_INPUT_TYPE,
     PIXEL_SHUFFLE_OUTPUT_TYPE,
     MM_PROJ_OUTPUT_TYPE,
-    HIDDEN_STATE_TYPE,
+    ATTN_HIDDEN_STATES_TYPE,
     Cache
 )
 
@@ -38,10 +38,10 @@ from models.qwen2.model import Qwen2ForCausalLM
 @typechecked(mode = MODE)
 def merge_embeddings(
         input_ids: INPUT_IDS_TYPE, 
-        input_embedd: HIDDEN_STATE_TYPE,
+        input_embedd: ATTN_HIDDEN_STATES_TYPE,
         image_features: MM_PROJ_OUTPUT_TYPE,
         context_img_token_id:int
-    )->HIDDEN_STATE_TYPE:
+    )->ATTN_HIDDEN_STATES_TYPE:
     r"""
     Merge image features into input embedded
     """
@@ -177,7 +177,7 @@ class INternVL3(nnx.Module):
 
         """
         # get text features from text embedding
-        inputs_embeds: HIDDEN_STATE_TYPE = self.language_model.embedder(input_ids)
+        inputs_embeds: ATTN_HIDDEN_STATES_TYPE = self.language_model.embedder(input_ids)
 
         # get image features
         image_features: MM_PROJ_OUTPUT_TYPE = self.get_image_features(pixel_values=pixel_values)
@@ -192,7 +192,6 @@ class INternVL3(nnx.Module):
             f"Image features and image tokens do not match: tokens: {n_image_tokens}, features {n_image_features}"
 
         # merge image feautres with input embeds
-        
         merged_input_embedd = merge_embeddings(
             input_ids = input_ids, 
             input_embedd = inputs_embeds,
@@ -200,7 +199,7 @@ class INternVL3(nnx.Module):
             context_img_token_id = self.config.processsor_config.context_image_token_id
         )
 
-        attention_mask = make_causal_attn_mask(
+        attention_mask = make_causal_attn_mask_for_vision(
             input_ids = input_ids,
             input_mask = input_mask,
             start_img_token_id = self.config.processsor_config.start_image_token_id,
