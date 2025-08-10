@@ -86,6 +86,20 @@ class Qwen3Config:
         )
 
     @classmethod
+    def qwen3_4_b(cls):  # qwen3-4B
+        return cls(
+            num_layers=36,
+            vocab_size=151936,
+            embed_dim=2560,
+            hidden_dim=9728,
+            num_heads=32,
+            head_dim=128,
+            num_kv_heads=8,
+            norm_eps=1e-06,
+            rope_theta=1_000_000,
+        )
+
+    @classmethod
     def qwen3_14_b(cls):  # qwen3-14B
         return cls(
             num_layers=40,
