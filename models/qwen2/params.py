@@ -7,7 +7,8 @@ import jax
 import jax.numpy as jnp
 import safetensors.flax as safetensors
 import tqdm
-from .model import Qwen2ModelConfig, Qwen2
+from .model import Qwen2ForCausalLM
+from .configs import Qwen2ModelConfig
 
 def _stack_experts(params: dict[str, jax.Array]):
     """Stack experts in the loaded pytorch params."""
@@ -171,7 +172,7 @@ def create_model_from_safe_tensors(
     file_dir: str,
     config: Qwen2ModelConfig,
     mesh: jax.sharding.Mesh | None = None,
-) -> Qwen2:
+) -> Qwen2ForCausalLM:
     """Load tensors from the safetensors file and create a Qwen2 model."""
     files = list(epath.Path(file_dir).expanduser().glob("*.safetensors"))
 
@@ -186,7 +187,7 @@ def create_model_from_safe_tensors(
         tensor_dict = _stack_experts(tensor_dict)
 
     qwen2 = nnx.eval_shape(
-        lambda: Qwen2(config, rngs=nnx.Rngs(params=0))
+        lambda: Qwen2ForCausalLM(config, rngs=nnx.Rngs(params=0))
     )
 
     graph_def, abs_state = nnx.split(qwen2)
