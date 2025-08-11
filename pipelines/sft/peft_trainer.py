@@ -17,13 +17,13 @@ import numpy as np
 import optax
 import orbax.checkpoint as ocp
 
-from sft import checkpoint_manager
-from sft import hooks
-from sft import inflight_throttler
-from sft import metrics_logger
-from sft import profiler
-from sft import progress_bar
-from sft import system_metrics_calculator
+from pipelines.sft import checkpoint_manager
+from pipelines.sft import hooks
+from pipelines.sft import inflight_throttler
+from pipelines.sft import metrics_logger
+from pipelines.sft import profiler
+from pipelines.sft import progress_bar
+from pipelines.sft import system_metrics_calculator
 
 _ModelInputT = Dict[str, ArrayLike]
 P = ParamSpec("P")
@@ -153,11 +153,11 @@ class PeftTrainer:
                 optimizer, training_config.gradient_accumulation_steps
             )
         if self._lora_enabled:
-            self.optimizer = nnx.ModelAndOptimizer(
-                self.model, optimizer, wrt=nnx.LoRAParam
+            self.optimizer = nnx.Optimizer(
+                model = self.model, tx = optimizer, wrt=nnx.LoRAParam
             )
         else:
-            self.optimizer = nnx.ModelAndOptimizer(self.model, optimizer)
+            self.optimizer = nnx.Optimizer(model = self.model, tx = optimizer)
     
         self.loss_fn = _default_loss_fn
         self.eval_loss_fn = _default_loss_fn
