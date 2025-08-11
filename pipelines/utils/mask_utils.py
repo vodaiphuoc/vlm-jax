@@ -1,4 +1,4 @@
-"""Utility functions for sampler."""
+"""Utility functions related to attention mask, position for sampler."""
 
 import functools
 import jax
@@ -14,6 +14,22 @@ from models.types import (
     ATTENTION_MASK_TYPE, 
     POSITION_IDS_TYPE
 )
+
+def build_positions_from_mask(input_mask: INPUT_MASK_TYPE) -> POSITION_IDS_TYPE:
+    """Computes the `positions` from the `input_mask`.
+
+    Args:
+        input_mask: The tokens `input_mask`, True for non-padded tokens only.
+
+    Returns:
+        The indices to use for RoPE and absolute position encodings for the given
+        input mask.
+    """
+    positions = jnp.cumsum(input_mask, axis=-1)
+    # Subtract one for all positions from the first valid one as they are
+    # 0-indexed
+    return positions - (positions >= 1)
+
 
 def compute_attention_masks(
         time_step: int, 

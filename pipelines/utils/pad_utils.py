@@ -1,4 +1,4 @@
-"""Utility functions for sampler."""
+"""Utility functions for padding for sampler."""
 import functools
 import jax
 from jax import lax
@@ -189,23 +189,6 @@ def single_padded_fill_tokens_and_logits(
         mask = mask[:, None]
         output_logit = jnp.where(mask, output_logit, 0)
     return jnp.array(length), output_token, output_logit
-
-
-def build_positions_from_mask(input_mask: jax.Array) -> jax.Array:
-    """Computes the `positions` from the `input_mask`.
-
-    Args:
-        input_mask: The tokens `input_mask`, True for non-padded tokens only.
-
-    Returns:
-        The indices to use for RoPE and absolute position encodings for the given
-        input mask.
-    """
-    positions = jnp.cumsum(input_mask, axis=-1)
-    # Subtract one for all positions from the first valid one as they are
-    # 0-indexed
-    return positions - (positions >= 1)
-
 
 def check_sampling_mode_conflict(
         original_sampling_mode: list[
