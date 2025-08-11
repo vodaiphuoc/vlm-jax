@@ -1,7 +1,7 @@
 # - annotations:
 #     - B: batch size
 #     - L: sequence length of text input also sequence length in Q_proj
-#     - S: sequence length in K_proj and V_proj
+#     - S: sequence length in K_proj and V_proj or Cache size
 #     - D: embedding dim
 #     - H: head dim
 #     - N: num attention heads
@@ -10,35 +10,50 @@
 import jaxtyping
 from typing import List, TypedDict, Dict
 
-class INPUT_IDS_TYPE(jaxtyping.Int[jaxtyping.Array,"B L"]):
+class INPUT_IDS_TYPE(
+        jaxtyping.Int[jaxtyping.Array,"B L"],
+        jaxtyping.Array
+    ):
     r"""
     Type of input ids (after tokenized) with:
         - dtype: int
         - shape: (B, L) where B=Batch, L=Sequence length
     """
 
-class INPUT_MASK_TYPE(jaxtyping.Bool[jaxtyping.Array,"B L"]):
+class INPUT_MASK_TYPE(
+        jaxtyping.Bool[jaxtyping.Array,"B L"],
+        jaxtyping.Array
+    ):
     r"""
     Type of `attention_mask` from HF tokeninzer, be used as `input_mask`
         - dtype: boolen
         - shape: (B, L) where B=Batch, L=Sequence length
     """
 
-class ATTENTION_MASK_TYPE(jaxtyping.Bool[jaxtyping.Array,"B L L"]):
+class ATTENTION_MASK_TYPE(
+        jaxtyping.Bool[jaxtyping.Array,"B L S"],
+        jaxtyping.Array
+    ):
     r"""
     Type of attention_mask input to attention layer
         - dtype: boolen
-        - shape: (B, L, L) where B=Batch, L=Sequence length
+        - shape: (B, L, S) where B=Batch, S=Cache size
     """
 
-class POSITION_IDS_TYPE(jaxtyping.Int[jaxtyping.Array, "B L"]):
+class POSITION_IDS_TYPE(
+        jaxtyping.Int[jaxtyping.Array, "B L"],
+        jaxtyping.Array
+    ):
     r"""
     Type of position ids
         - dtype: int
         - shape: (B, L)
     """
 
-class INPUT_IMAGES_TYPE(jaxtyping.UInt8[jaxtyping.Array,"B_I H W C"]):
+class INPUT_IMAGES_TYPE(
+        jaxtyping.UInt8[jaxtyping.Array,"B_I H W C"],
+        jaxtyping.Array
+    ):
     r"""
     Type of input images in channels-last convention
         - dtype: uint8
@@ -46,7 +61,10 @@ class INPUT_IMAGES_TYPE(jaxtyping.UInt8[jaxtyping.Array,"B_I H W C"]):
          (with `crop_to_patches`) in batch of inputs
     """
 
-class PATCH_EMBEDDING_OUT_TYPE(jaxtyping.BFloat16[jaxtyping.Array,"B_I S D"]):
+class PATCH_EMBEDDING_OUT_TYPE(
+        jaxtyping.BFloat16[jaxtyping.Array,"B_I S D"],
+        jaxtyping.Array
+    ):
     r"""
     Type of output of `vision.model.InternVLVisionPatchEmbeddings` class
         - dtype: bfloat16
@@ -57,7 +75,10 @@ class PATCH_EMBEDDING_OUT_TYPE(jaxtyping.BFloat16[jaxtyping.Array,"B_I S D"]):
             - S is sequence length aka num_patches
     """
 
-class VISION_HIDDEN_STATES_TYPE(jaxtyping.BFloat16[jaxtyping.Array,"B_I S+1 D"]):
+class VISION_HIDDEN_STATES_TYPE(
+        jaxtyping.BFloat16[jaxtyping.Array,"B_I S+1 D"],
+        jaxtyping.Array
+    ):
     r"""
     Type of output embedding shape is also hidden states input of attention
         - dtype: bfloat16
@@ -68,7 +89,10 @@ class VISION_HIDDEN_STATES_TYPE(jaxtyping.BFloat16[jaxtyping.Array,"B_I S+1 D"])
             - D is hidden size
     """
 
-class PIXEL_SHUFFLE_INPUT_TYPE(jaxtyping.BFloat16[jaxtyping.Array,"B_I H_no_scalse W_no_scale D"]):
+class PIXEL_SHUFFLE_INPUT_TYPE(
+        jaxtyping.BFloat16[jaxtyping.Array,"B_I H_no_scalse W_no_scale D"],
+        jaxtyping.Array    
+    ):
     r"""
     Type of input of `INternVL3.pixel_shuffle` method
         - dtype: bfloat16
@@ -80,7 +104,10 @@ class PIXEL_SHUFFLE_INPUT_TYPE(jaxtyping.BFloat16[jaxtyping.Array,"B_I H_no_scal
     """
 
 
-class PIXEL_SHUFFLE_OUTPUT_TYPE(jaxtyping.BFloat16[jaxtyping.Array,"B_I H_scale W_scale 4096"]):
+class PIXEL_SHUFFLE_OUTPUT_TYPE(
+        jaxtyping.BFloat16[jaxtyping.Array,"B_I H_scale W_scale 4096"],
+        jaxtyping.Array
+    ):
     r"""
     Type of output of `INternVL3.pixel_shuffle` method
         - dtype: bfloat16
@@ -91,7 +118,10 @@ class PIXEL_SHUFFLE_OUTPUT_TYPE(jaxtyping.BFloat16[jaxtyping.Array,"B_I H_scale 
             - D is hidden size == 4096
     """
 
-class MM_PROJ_INPUT_TYPE(jaxtyping.BFloat16[jaxtyping.Array,"B_I _ 4096"]):
+class MM_PROJ_INPUT_TYPE(
+        jaxtyping.BFloat16[jaxtyping.Array,"B_I _ 4096"],
+        jaxtyping.Array
+    ):
     r"""
     Type of input of `mm_proj.InternVLMultiModalProjector.__call__` method
         - dtype: bfloat16
