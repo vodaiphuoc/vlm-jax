@@ -509,13 +509,13 @@ class Sampler:
                 beam_size=int(sampler_state.sampling_parameters['beam_size']),
             )
 
-        beam_search_sampling_state = sampling_state
-        logits = updated_args['logits']
-        cache = updated_args['cache']
-        token_buffer = updated_args['token_buffer']
-        done = updated_args['done']
-        positions = updated_args['positions']
-        logits_buffer = updated_args['logits_buffer']
+            beam_search_sampling_state = sampling_state
+            logits = updated_args['logits']
+            cache = updated_args['cache']
+            token_buffer = updated_args['token_buffer']
+            done = updated_args['done']
+            positions = updated_args['positions']
+            logits_buffer = updated_args['logits_buffer']
 
         updated_sampling_state = _SamplingState(
             decoding_step=sampler_state.decoding_step,
@@ -752,27 +752,27 @@ class Sampler:
             out_logits = []
             lengths = []
         
-        for i, token_buffer in enumerate(token_buffers):
-            start_idx = (
-                pad_util_lib.find_first_non_pad_idx(token_buffer, self.tokenizer.pad_id())
-                if echo
-                else max_prompt_length
-            )
-            end_idx = (
-                pad_util_lib.find_first_eos_idx(
-                    token_buffer[max_prompt_length:], self.tokenizer.eos_id()
+            for i, token_buffer in enumerate(token_buffers):
+                start_idx = (
+                    pad_util_lib.find_first_non_pad_idx(token_buffer, self.tokenizer.pad_id())
+                    if echo
+                    else max_prompt_length
                 )
-                + max_prompt_length
-            )
-            out_tokens.append(token_buffer[start_idx:end_idx])
+                end_idx = (
+                    pad_util_lib.find_first_eos_idx(
+                        token_buffer[max_prompt_length:], self.tokenizer.eos_id()
+                    )
+                    + max_prompt_length
+                )
+                out_tokens.append(token_buffer[start_idx:end_idx])
 
-            if return_logits:
-                out_logits.append(logits_buffers[i][start_idx:end_idx])
-            lengths.append(end_idx - start_idx)
+                if return_logits:
+                    out_logits.append(logits_buffers[i][start_idx:end_idx])
+                lengths.append(end_idx - start_idx)
 
-        decoded_outputs = [
-            self.tokenizer.decode(tokens.tolist()) for tokens in out_tokens
-        ]
+            decoded_outputs = [
+                self.tokenizer.decode(tokens.tolist()) for tokens in out_tokens
+            ]
 
         result = SamplerOutput(
             text=decoded_outputs,
