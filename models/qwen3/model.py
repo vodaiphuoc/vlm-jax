@@ -59,6 +59,28 @@ class Einsum(nnx.Module):
     def __call__(self, x: jaxtyping.ArrayLike) -> jaxtyping.Array:
         return jnp.einsum(self.einsum_str, x, self.w.value)
 
+class LmHead(nnx.Module):
+    r"""Final lm_head has shared weight with `Embedder`
+    """
+
+    def __init__(
+        self,
+        einsum_str: str,
+        shape: flax.typing.Shape,
+        *,
+        rngs: nnx.Rngs,
+        sharding: Tuple[str | None, ...],
+    ):
+        self.einsum_str = einsum_str
+        self.shape = shape
+        self.w = nnx.Param(
+            nnx.initializers.normal()(rngs.params(), shape), sharding=sharding
+        )
+
+    @jax.named_scope('einsum')
+    def __call__(self, x: jaxtyping.ArrayLike) -> jaxtyping.Array:
+        return jnp.einsum(self.einsum_str, x, self.w.value.T)  #(DV) <- shape (VD)
+
 
 class Embedder(nnx.Module):
     """Embedder module."""
@@ -509,12 +531,15 @@ class Qwen3ForCausalLM(nnx.Module):
             norm_eps=config.norm_eps,
             shd_config=shd_config,
         )
-        self.lm_head = Einsum(
+        self.lm_head = LmHead(
             einsum_str='BLD,DV->BLV',
-            shape=(config.embed_dim, config.vocab_size),
+            shape=(config.vocab_size,config.embed_dim),
             rngs=rngs,
             sharding=shd_config.emb_dv,
         )
+
+        # hf weight use `tied weights`
+        self.lm_head.w = self.embedder.input_embedding
 
     @typechecked(mode=MODE)
     def __call__(
