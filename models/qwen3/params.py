@@ -182,8 +182,6 @@ def create_model_from_safe_tensors(
     if config.num_experts is not None:
         tensor_dict = _stack_experts(tensor_dict)
 
-    print('state dict keys: ', tensor_dict.keys())
-
     qwen3 = nnx.eval_shape(
         lambda: Qwen3ForCausalLM(config, rngs=nnx.Rngs(params=0))
     )
@@ -201,11 +199,15 @@ def create_model_from_safe_tensors(
 
     if mesh is not None:
         sharding = nnx.get_named_sharding(abs_state, mesh).to_pure_dict()
-        print('dict sharding: ',sharding)
-        print('state_dict before put: ', state_dict)
         state_dict = jax.device_put(state_dict, sharding)
     else:
         state_dict = jax.device_put(state_dict, jax.devices()[0])
 
     nnx.replace_by_pure_dict(abs_state, state_dict)
-    return nnx.merge(graph_def, state_dict), tokenizer
+    loaded_model = nnx.merge(graph_def, state_dict)
+
+    # debugging
+    print("embedding:", loaded_model.embedder.input_embedding)
+    print("lm head:", loaded_model.lm_head.w)
+    print('check equal: ', loaded_model.embedder.input_embedding == loaded_model.lm_head.w)
+    return loaded_model, tokenizer
