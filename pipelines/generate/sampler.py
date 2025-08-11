@@ -650,7 +650,7 @@ class Sampler:
         Returns:
         sampler_output: A SamplerOutput object containing the generated samples.
         """
-        forbidden_token_ids = None
+        forbidden_token_ids = []
         if forbidden_tokens is not None:
             forbidden_token_ids = []
             for token in forbidden_tokens:
