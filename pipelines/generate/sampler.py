@@ -1,7 +1,5 @@
 """Vanilla sampler for LLM generation."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 import dataclasses
 from typing import Any
@@ -17,13 +15,12 @@ import jax
 import jax.numpy as jnp
 import jaxtyping
 
-from generate import utils
-import generate.beam_search as beam_search_lib
-import generate.tokenizer_adapter as tok_adapter
+import pipelines.utils.mask_utils as mask_util_lib
+import pipelines.utils.pad_utils as pad_util_lib
+import pipelines.generate.beam_search as beam_search_lib
+import pipelines.generate.tokenizer_adapter as tok_adapter
 
-
-LayerCache = dict[str, jaxtyping.Array]
-Cache = dict[str, LayerCache]
+from models.types import Cache, LayerCache
 
 INT32 = jnp.int32
 
@@ -313,7 +310,7 @@ class Sampler:
         input_mask = input_mask.at[:, :num_input_tokens].set(
             all_input_ids != self.tokenizer.pad_id()
         )
-        positions = utils.build_positions_from_mask(input_mask)
+        positions = mask_util_lib.build_positions_from_mask(input_mask)
 
         done = jnp.zeros((batch_size,), dtype=jnp.bool_)
 
@@ -338,11 +335,11 @@ class Sampler:
         sampling_mode = [None]
 
         if beam_size is not None:
-            utils.check_sampling_mode_conflict(sampling_mode, 'beam_search')
+            pad_util_lib.check_sampling_mode_conflict(sampling_mode, 'beam_search')
             sampling_parameters['beam_size'] = beam_size
 
         if top_p is not None:
-            utils.check_sampling_mode_conflict(sampling_mode, 'top_p')
+            pad_util_lib.check_sampling_mode_conflict(sampling_mode, 'top_p')
             sampling_parameters['top_p'] = top_p
             sampling_parameters['top_k'] = top_k
 
@@ -470,7 +467,7 @@ class Sampler:
         )
 
         input_mask = tokens != self.tokenizer.pad_id()
-        attention_mask = utils.make_causal_attn_mask(
+        attention_mask = mask_util_lib.make_causal_attn_mask(
             input_mask, self.cache_config.cache_size
         )
 
@@ -576,7 +573,7 @@ class Sampler:
         )
 
         input_mask = sampler_state.token_buffer == self.tokenizer.pad_id()
-        attention_mask = utils.compute_attention_masks(
+        attention_mask = mask_util_lib.compute_attention_masks(
             decoding_step, self.cache_config.cache_size, input_mask
         )
 
@@ -670,10 +667,10 @@ class Sampler:
         max_tokens_length = max(len(x) for x in tokens)
     
         if max_prompt_length is None or max_prompt_length < max_tokens_length:
-            max_prompt_length = utils.next_power_of_2(max_tokens_length)
+            max_prompt_length = pad_util_lib.next_power_of_2(max_tokens_length)
         
         all_input_ids = jnp.array([
-            utils.pad_to_length(
+            pad_util_lib.pad_to_length(
                 x,
                 target_length=max_prompt_length,
                 pad_value=self.tokenizer.pad_id(),
@@ -733,7 +730,7 @@ class Sampler:
         
         if pad_output:
             max_len = total_sampling_steps if echo else total_generation_steps
-            lengths, out_tokens, out_logits = utils.padded_fill_tokens_and_logits(
+            lengths, out_tokens, out_logits = pad_util_lib.padded_fill_tokens_and_logits(
                 token_buffers,
                 logits_buffers,
                 return_logits,
@@ -754,12 +751,12 @@ class Sampler:
         
         for i, token_buffer in enumerate(token_buffers):
             start_idx = (
-                utils.find_first_non_pad_idx(token_buffer, self.tokenizer.pad_id())
+                pad_util_lib.find_first_non_pad_idx(token_buffer, self.tokenizer.pad_id())
                 if echo
                 else max_prompt_length
             )
             end_idx = (
-                utils.find_first_eos_idx(
+                pad_util_lib.find_first_eos_idx(
                     token_buffer[max_prompt_length:], self.tokenizer.eos_id()
                 )
                 + max_prompt_length
