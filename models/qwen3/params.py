@@ -207,7 +207,7 @@ def create_model_from_safe_tensors(
     loaded_model = nnx.merge(graph_def, state_dict)
 
     # debugging
-    print("embedding:", loaded_model.embedder.input_embedding)
-    print("lm head:", loaded_model.lm_head.w)
-    print('check equal: ', loaded_model.embedder.input_embedding == loaded_model.lm_head.w)
+    # print("embedding:", loaded_model.embedder.input_embedding)
+    # print("lm head:", loaded_model.lm_head.w)
+    # print('check equal: ', loaded_model.embedder.input_embedding == loaded_model.lm_head.w)
     return loaded_model, tokenizer
