@@ -154,7 +154,7 @@ class Attention(nnx.Module):
         ):
         self.shd_config = shd_config
         self.q_proj = Einsum(
-            einsum_str='BTD,DNH->BTNH',
+            einsum_str='BLD,DNH->BLNH',
             shape=(config.embed_dim, config.num_heads, config.head_dim),
             rngs=rngs,
             sharding=shd_config.q_weight_ndh,
@@ -172,7 +172,7 @@ class Attention(nnx.Module):
             sharding=shd_config.kv_weight_ndh,
         )
         self.o_proj = Einsum(
-            einsum_str='BTNH,NHD->BTD',
+            einsum_str='BLNH,NHD->BLD',
             shape=(config.num_heads, config.head_dim, config.embed_dim),
             rngs=rngs,
             sharding=shd_config.o_weight_nhd,
@@ -236,16 +236,16 @@ class Attention(nnx.Module):
                 slice_indices
             )
 
-        b, t, n, h = query_proj.shape
+        b, l, n, h = query_proj.shape
         _, s, k, _ = key_proj.shape
 
         # GQA
-        query_proj = query_proj.reshape((b, t, k, n//k, h))
+        query_proj = query_proj.reshape((b, l, k, n//k, h))
         
         # NOTE: n//k == G
-        attn = jnp.einsum('BTKGH,BSKH->BKGTS', query_proj, key_proj) * self.scale
-        # [B, K, G, T, S] -> [B, K*G, T, S] <-> [B, N, T, S]
-        attn = attn.reshape((b, n, t, s))
+        attn = jnp.einsum('BLKGH,BSKH->BKGLS', query_proj, key_proj) * self.scale
+        # [B, K, G, L, S] -> [B, K*G, L, S] <-> [B, N, L, S]
+        attn = attn.reshape((b, n, l, s))
 
         if attn_mask is not None:
             attn = jnp.where((jnp.expand_dims(attn_mask, -3)), attn, K_MASK)
@@ -254,10 +254,10 @@ class Attention(nnx.Module):
             key_proj.dtype
         )
 
-        attn = attn.reshape((b, k, n//k, t, s))
-        qkv = jnp.einsum('BKGTS,BSKH->BTKGH', attn, value_proj)
-        # [B, T, K, G, H] -> [B, T, K*G, H] <-> [B, T, N, H]
-        qkv = qkv.reshape((b, t, n, h))
+        attn = attn.reshape((b, k, n//k, l, s))
+        qkv = jnp.einsum('BKGLS,BSKH->BLKGH', attn, value_proj)
+        # [B, L, K, G, H] -> [B, L, K*G, H] <-> [B, L, N, H]
+        qkv = qkv.reshape((b, l, n, h))
 
         outputs = self.o_proj(qkv)
         outputs = shard(outputs, self.shd_config.act_btd)

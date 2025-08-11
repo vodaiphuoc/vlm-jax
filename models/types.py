@@ -1,7 +1,6 @@
 # - annotations:
 #     - B: batch size
-#     - L: sequence length of text input
-#     - T: sequence length in Q_proj
+#     - L: sequence length of text input also sequence length in Q_proj
 #     - S: sequence length in K_proj and V_proj
 #     - D: embedding dim
 #     - H: head dim
@@ -134,13 +133,13 @@ of `vision.model.InternVLVisionPatchEmbeddings` class.
 
 
 class Q_PROJ_VALUES_TYPE(
-        jaxtyping.BFloat16[jaxtyping.Array,"B T N H"],
+        jaxtyping.BFloat16[jaxtyping.Array,"B L N H"],
         jaxtyping.Array
     ):
     r"""
     Type of projected values after passed through q_proj
         - dtype: bloat16
-        - shape: (B, T, N, H) where T can be sequence
+        - shape: (B, L, N, H) where L can be sequence
             length of input in prefill phase or 1 in 
             decode phase
     """
