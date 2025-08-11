@@ -279,11 +279,11 @@ class Attention(nnx.Module):
 
     @property
     def num_heads(self):
-        return self.q_proj.shape[0]
+        return self.q_proj.shape[1]
 
     @property
     def num_kv_heads(self):
-        return self.kv_proj.shape[1]
+        return self.k_proj.shape[1]
 
 
 class MoELayer(nnx.Module):
