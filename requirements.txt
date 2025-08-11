@@ -1,6 +1,6 @@
 jax==0.6.0
 jaxtyping==0.3.2
-flax==0.10.5
+flax==0.10.7
 pytype
 safetensors==0.5.3
 tqdm
