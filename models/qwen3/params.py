@@ -201,6 +201,8 @@ def create_model_from_safe_tensors(
 
     if mesh is not None:
         sharding = nnx.get_named_sharding(abs_state, mesh).to_pure_dict()
+        print('dict sharding: ',sharding)
+        print('state_dict before put: ', state_dict)
         state_dict = jax.device_put(state_dict, sharding)
     else:
         state_dict = jax.device_put(state_dict, jax.devices()[0])
