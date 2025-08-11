@@ -44,6 +44,7 @@ class ShardingConfig:
 class Qwen3Config:
     """Configuration for the Qwen3 model."""
 
+    repo_id:str
     num_layers: int
     vocab_size: int
     embed_dim: int
@@ -60,6 +61,7 @@ class Qwen3Config:
     @classmethod
     def qwen3_0_6_b(cls):  # qwen3-0.6B
         return cls(
+            repo_id = "Qwen/Qwen3-0.6B",
             num_layers=28,
             vocab_size=151936,
             embed_dim=1024,
@@ -74,6 +76,7 @@ class Qwen3Config:
     @classmethod
     def qwen3_1_7_b(cls):  # qwen3-1.7B
         return cls(
+            repo_id = "Qwen/Qwen3-1.7B",
             num_layers=28,
             vocab_size=151936,
             embed_dim=2048,
@@ -88,6 +91,7 @@ class Qwen3Config:
     @classmethod
     def qwen3_4_b(cls):  # qwen3-4B
         return cls(
+            repo_id = "Qwen/Qwen3-4B",
             num_layers=36,
             vocab_size=151936,
             embed_dim=2560,
@@ -102,6 +106,7 @@ class Qwen3Config:
     @classmethod
     def qwen3_14_b(cls):  # qwen3-14B
         return cls(
+            repo_id = "Qwen/Qwen3-14B",
             num_layers=40,
             vocab_size=151936,
             embed_dim=5120,
@@ -116,6 +121,7 @@ class Qwen3Config:
     @classmethod
     def qwen3_30_b(cls):  # qwen3-30B
         return cls(
+            repo_id = "Qwen/Qwen3-30B",
             num_layers=48,
             vocab_size=151936,
             embed_dim=2048,

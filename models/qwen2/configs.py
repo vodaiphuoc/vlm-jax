@@ -64,7 +64,7 @@ class Qwen2ModelConfig:
         norm_eps (float): alias of `rms_norm_eps` on hf config
         rope_theta (int): rope_theta for ROPE
     """
-
+    repo_id:str
     num_layers: int  # num_hidden_layers
     vocab_size: int
     embed_dim: int   # hidden_size
@@ -81,6 +81,7 @@ class Qwen2ModelConfig:
     @classmethod
     def qwen2_0_5_b(cls):  # qwen2-0.5B
         return cls(
+            repo_id = "Qwen/Qwen2-0.5B",
             num_layers=24,
             vocab_size=151936,
             embed_dim=896,
