@@ -182,6 +182,8 @@ def create_model_from_safe_tensors(
     if config.num_experts is not None:
         tensor_dict = _stack_experts(tensor_dict)
 
+    print('state dict keys: ', tensor_dict.keys())
+
     qwen3 = nnx.eval_shape(
         lambda: Qwen3ForCausalLM(config, rngs=nnx.Rngs(params=0))
     )
@@ -203,5 +205,5 @@ def create_model_from_safe_tensors(
     else:
         state_dict = jax.device_put(state_dict, jax.devices()[0])
 
-    # nnx.replace_by_pure_dict(abs_state, state_dict)
+    nnx.replace_by_pure_dict(abs_state, state_dict)
     return nnx.merge(graph_def, state_dict), tokenizer
