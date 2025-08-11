@@ -105,20 +105,20 @@ def _get_key_and_transform_mapping(cfg: Qwen3Config):
             r"layers.\1.post_attention_layernorm.w",
             None,
         ),
-        # r"lm_head\.weight": ("lm_head.w", ((1, 0), None)),
+        r"lm_head\.weight": ("lm_head.w", ((1, 0), None)),
     }
 
 
 def _torch_key_to_jax_key(mapping, source_key):
-  subs = [
-      (re.sub(pat, repl, source_key), reshape)
-      for pat, (repl, reshape) in mapping.items()
-      if re.match(pat, source_key)
-  ]
-  if len(subs) != 1:
-    raise ValueError(f"Only one key should be found: {subs[0]}")
-  else:
-    return subs[0]
+    subs = [
+        (re.sub(pat, repl, source_key), reshape)
+        for pat, (repl, reshape) in mapping.items()
+        if re.match(pat, source_key)
+    ]
+    if len(subs) != 1:
+        raise ValueError(f"Only one key should be found: {subs[0]}")
+    else:
+        return subs[0]
 
 
 def _assign_weights(
