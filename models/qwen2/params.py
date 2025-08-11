@@ -9,6 +9,7 @@ import safetensors.flax as safetensors
 import tqdm
 from .model import Qwen2ForCausalLM
 from .configs import Qwen2ModelConfig
+from models.utils import download_hf_repo
 
 def _stack_experts(params: dict[str, jax.Array]):
     """Stack experts in the loaded pytorch params."""
@@ -169,10 +170,10 @@ def _stoi(s):
 
 
 def create_model_from_safe_tensors(
-    file_dir: str,
     config: Qwen2ModelConfig,
     mesh: jax.sharding.Mesh | None = None,
 ) -> Qwen2ForCausalLM:
+    file_dir = download_hf_repo(repo_id= config.repo_id)
     """Load tensors from the safetensors file and create a Qwen2 model."""
     files = list(epath.Path(file_dir).expanduser().glob("*.safetensors"))
 

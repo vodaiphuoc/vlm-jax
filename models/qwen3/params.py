@@ -10,6 +10,7 @@ import tqdm
 from typing import List, Dict, Tuple
 from .model import Qwen3ForCausalLM
 from .configs import Qwen3Config
+from models.utils import download_hf_repo
 
 def _stack_experts(params: dict[str, jax.Array]):
     """Stack experts in the loaded pytorch params."""
@@ -162,11 +163,11 @@ def _stoi(s):
 
 
 def create_model_from_safe_tensors(
-        file_dir: str,
         config: Qwen3Config,
         mesh: jax.sharding.Mesh | None = None,
     ) -> Qwen3ForCausalLM:
     """Load tensors from the safetensors file and create a Qwen3 model."""
+    file_dir = download_hf_repo(repo_id= config.repo_id)
     files = list(epath.Path(file_dir).expanduser().glob("*.safetensors"))
 
     if not files:
