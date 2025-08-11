@@ -510,7 +510,7 @@ class Qwen3ForCausalLM(nnx.Module):
             shd_config=shd_config,
         )
         self.lm_head = Einsum(
-            einsum_str='BTD,DV->BTV',
+            einsum_str='BLD,DV->BLV',
             shape=(config.embed_dim, config.vocab_size),
             rngs=rngs,
             sharding=shd_config.emb_dv,
