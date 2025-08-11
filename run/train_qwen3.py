@@ -14,7 +14,7 @@ import jax
 # from jax.sharding import Mesh, PartitionSpec, NamedSharding
 
 MESH = [(1, 8), ("fsdp", "tp")]
-config = Qwen3Config.qwen3_4_b()
+config = Qwen3Config.qwen3_1_7_b()
 
 mesh = jax.make_mesh(*MESH)
 
