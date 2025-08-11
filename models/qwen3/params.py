@@ -105,7 +105,7 @@ def _get_key_and_transform_mapping(cfg: Qwen3Config):
             r"layers.\1.post_attention_layernorm.w",
             None,
         ),
-        r"lm_head\.weight": ("lm_head.w", ((1, 0), None)),
+        # r"lm_head\.weight": ("lm_head.w", ((1, 0), None)),
     }
 
 
@@ -206,8 +206,4 @@ def create_model_from_safe_tensors(
     nnx.replace_by_pure_dict(abs_state, state_dict)
     loaded_model = nnx.merge(graph_def, state_dict)
 
-    # debugging
-    # print("embedding:", loaded_model.embedder.input_embedding)
-    # print("lm head:", loaded_model.lm_head.w)
-    # print('check equal: ', loaded_model.embedder.input_embedding == loaded_model.lm_head.w)
     return loaded_model, tokenizer
