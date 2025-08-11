@@ -3,6 +3,7 @@ from beartype import beartype as beartypechecker
 import jaxtyping
 from typing import Literal
 from huggingface_hub import snapshot_download
+import os
 
 def typechecked(mode: Literal['DEV', 'PROD']):
     """
@@ -30,4 +31,5 @@ def download_hf_repo(repo_id: str)->str:
     Returns:
         (str): download dir
     """
+    os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
     return snapshot_download(repo_id, revision="main")
