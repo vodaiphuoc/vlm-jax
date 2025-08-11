@@ -5,6 +5,8 @@ from typing import Literal
 from huggingface_hub import snapshot_download
 import os
 
+os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
+
 def typechecked(mode: Literal['DEV', 'PROD']):
     """
     A wrapper decorator for type and shape checking conditionally by `mode`
@@ -31,5 +33,4 @@ def download_hf_repo(repo_id: str)->str:
     Returns:
         (str): download dir
     """
-    os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
     return snapshot_download(repo_id, revision="main")
