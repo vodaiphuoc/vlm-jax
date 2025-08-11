@@ -198,6 +198,9 @@ class Sampler:
             self._transformer_state,
             is_leaf=lambda x: isinstance(x, nnx.Variable),
         )
+
+        print('in init sampler, self._flattened_transformer_state: ', self._flattened_transformer_state, len(self._flattened_transformer_state))
+
         # we separate out state and graph def so that the state can be passed as an
         # argument to _decode_fn, resulting in it not being treated as a static
         # arg. This greatly reduces the size of the HLO and reduces compile time

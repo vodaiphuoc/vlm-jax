@@ -55,6 +55,8 @@ inputs = templatize(
     ]
 )
 
+print(model_sampler.transformer)
+
 out = model_sampler(inputs, total_generation_steps=128, echo=True)
 
 for t in out.text:
