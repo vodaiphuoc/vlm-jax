@@ -11,6 +11,7 @@ from typing import List, Dict, Tuple
 from .model import Qwen3ForCausalLM
 from .configs import Qwen3Config
 from models.utils import download_hf_repo
+from transformers import AutoTokenizer
 
 def _stack_experts(params: dict[str, jax.Array]):
     """Stack experts in the loaded pytorch params."""
@@ -165,9 +166,10 @@ def _stoi(s):
 def create_model_from_safe_tensors(
         config: Qwen3Config,
         mesh: jax.sharding.Mesh | None = None,
-    ) -> Qwen3ForCausalLM:
+    ) -> Tuple[Qwen3ForCausalLM, AutoTokenizer]:
     """Load tensors from the safetensors file and create a Qwen3 model."""
     file_dir = download_hf_repo(repo_id= config.repo_id)
+    tokenizer = AutoTokenizer.from_pretrained(file_dir)
     files = list(epath.Path(file_dir).expanduser().glob("*.safetensors"))
 
     if not files:
@@ -201,5 +203,5 @@ def create_model_from_safe_tensors(
     else:
         state_dict = jax.device_put(state_dict, jax.devices()[0])
 
-    nnx.replace_by_pure_dict(abs_state, state_dict)
-    return nnx.merge(graph_def, state_dict)
+    # nnx.replace_by_pure_dict(abs_state, state_dict)
+    return nnx.merge(graph_def, state_dict), tokenizer
